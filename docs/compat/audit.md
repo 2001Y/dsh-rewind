@@ -11,7 +11,7 @@
 > is not restated (the probes pin it; [Deliberate semantics](#deliberate-semantics-no-entry-kept)
 > names it). Upstream references use symbols and file names, never line numbers — they rot.
 >
-> Targeted version: npm `@deepseek-ai/*@0.2.1-alpha.2` (the last verified release).
+> Targeted version: npm `@deepseek-ai/*@0.2.1-alpha.3` (the last verified release).
 > Source reference: the upstream [github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness).
 > Version alignment: see `docs/release/release.md`.
 
@@ -42,7 +42,7 @@ declarations satisfy the targeted version with no exemption.
 | I1 log replayability | A rewound log passes token-meter replay and `Session.create` (the resume-preflight validation) without throwing | `compat-invariants` I1, `verify-host` 12/13 |
 | I2 surface consistency | After a cut, the surface has no duplicate nodes, every node exists in the log, the withdrawn target never returns, and `deriveMessages()` is legal | `compat-invariants` I2 |
 | I3 step/turn structure | Client turn-tail ordering, unique `step/start` (real turns), no ghost turns; the `user/message` rewind marker adds no step frame | `compat-invariants` I3, `helpers.assertTurnTailOrdering` |
-| I4 fold-service safety | stats / title / goal / projection fold a marker-bearing log without throwing, with predictable values | `compat-invariants` I4 |
+| I4 fold-service safety | stats / title / goal / projection fold a marker-bearing log without throwing, with predictable values | `compat-invariants` I4, `compat-gaps` G4 |
 | I5 compact interop | A tool call orphaned by a cancelled turn is pair-balanced once shadowed by a rewind; a rewind across a compaction checkpoint is refused; rewind-then-compact stays legal | `compat-interop` I5, `verify-host` 12/14 |
 | I6 tool pipeline | before-snapshot capture/commit/restore is correct for `write` / `edit`, and cancellation timing never hangs. (`str_replace_editor` is an optional DSH package that stopped being a default tool in DSH 0.1.3, so it is not tracked) | `verify-host` 4–9 |
 | I7 client ordering | A log carrying tool turns and rewind markers (a single `user/message` replace) satisfies the client builder ordering | `compat-interop` I7 |
@@ -70,8 +70,8 @@ container; assistant rows have `conversation.chat.assistant-actions`, user / ste
 no counterpart. **Ask:** the symmetric slot, or publish the `data-chat-*` anchors with a
 deprecation path. **Stance:** keep the portal; a locate miss degrades to "no button", never a
 button on the wrong row. Pending-steering matching also keys on `data-message-attachments`,
-which `0.2.1-alpha.3` moved under the new `conversation.chat.user.content` Factory (still a
-descendant of the row). Reported upstream: Discussions #8345.
+which renders inside the `conversation.chat.user.content` Factory (still a descendant of the
+row). Reported upstream: Discussions #8345.
 
 ### U3 — client row visibility is not an extension input
 
@@ -131,23 +131,12 @@ filter, so the `@deepseek-ai/schemastery` peer floor is the real availability gu
 `.volatile()`: an older shadowing copy fails the top-level `Config` evaluation before the
 plugin loads. **Stance:** keep the floor; never treat the range as enforcement.
 
-### U10 — context-breakdown figures stop rolling back after a rewind (`0.2.1-alpha.3`, source read)
-
-**Not yet probe-verified.** `contextBreakdown` joined the compact seam's shadow-price protocol
-(`stateVersion` 5 → 6): an unmetered surface `replace` folds at zero delta, so the
-ContextMeter's conversation figure no longer decreases after a rewind. The same protocol
-(including its mismatch throw) already governed `contextPressure` on the targeted line.
-**Stance:** accepted display drift; the marker must not be made a metered replacement. No
-token-meter projection has a probe — see below.
-
 ## Coverage gaps
 
-- **token-meter projections** (`contextBreakdown`, `contextPressure`, `tokenUsage`): unprobed;
-  worth closing together with U10.
 - **Real browser rendering replay**: the contract's logic layer is covered in tests, but DOM
-  hiding is verified in a real engine manually, not in CI. `0.2.1-alpha.3` reworked the chat
-  viewport and collapse motion — re-check after the bump.
-- **Workflow/jobs cancelled by a rewind**: statically confirmed only. `0.2.1-alpha.3` makes it
+  hiding is verified in a real engine manually, not in CI — and this line reworked the chat
+  viewport and collapse motion, so re-check the hide + scroll behavior there.
+- **Workflow/jobs cancelled by a rewind**: statically confirmed only. This line makes it
   observable — log-only `job/registered` / `job/settled` carry the creating `toolCall` and a
   termination `cause`.
 - **Providers outside the verification dependencies**: `dsh-attachment-local`,
@@ -165,4 +154,5 @@ stats / telemetry fold the whole log; the title re-derives from the surface; a r
 `plan/mode` and the working directory alone; withdrawn content stays searchable and exportable
 (the log is append-only, only the surface is cut); the bundle card's locale + icon are declared
 by the plugin and read by the manager; a `Session` handle's synchronous reads are deprecated but
-still usable.
+still usable; the token-meter units fold an unmetered surface `replace` at zero delta, so their
+figures do not roll back after a rewind (pinned by G4).

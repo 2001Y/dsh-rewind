@@ -14,6 +14,10 @@
  *      `assistant/message` without usage, so the provider-`usage` baseline anchor
  *      survives the rewind and the next real usage-carrying turn keeps it.
  *      Recorded behavior, not a crash.
+ *   G4 token-meter projections: all three registered units fold a marker-bearing
+ *      log and publish legal views, and the breakdown / pressure / usage figures
+ *      do NOT roll back to the cut surface (an unmetered replacement folds at
+ *      zero delta under the compact seam's shadow-price protocol).
  */
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
@@ -22,6 +26,7 @@ import { Session, SessionId, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { foldSurface } from '@deepseek-ai/dsh-session'
 import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection'
 import { apply as applySessionStats } from '@deepseek-ai/dsh-session-stats'
+import { TokenMeter } from '@deepseek-ai/dsh-token-meter'
 import { applyRewind, buildTurnedSession, newMeter, textMessage } from './helpers.ts'
 
 /** A framed turn whose assistant step reports provider usage and a request header. */
@@ -131,5 +136,35 @@ describe('G3 token-meter usage anchor (probe: baseline behavior around rewind)',
 
     appendUsageTurn(session, 3, 3000, 1200)
     expect(meter.measure(session).baseline.kind).toBe('usage')
+  })
+})
+
+describe('G4 token-meter projections (probe: registry fold over a rewound log)', () => {
+  it('folds the marker log and does not roll the figures back to the cut surface', () => {
+    const session = buildUsageSession()
+    const markerSeq = applyRewind(session, firstUserSeq(session))
+    const events = session.snapshotEvents()
+
+    // Fold the log WITH the marker and the same log WITHOUT it (the marker is
+    // appended last), as a resume would from the durable log.
+    const ctx = new Context()
+    new SessionProjectionRegistry(ctx)
+    new TokenMeter(ctx)
+    const after = ctx.sessionProjections.snapshot(Session.create(session.id, events))
+    const before = ctx.sessionProjections.snapshot(Session.create(session.id, events.slice(0, markerSeq)))
+
+    // Every registered unit folds a marker-bearing log and publishes a legal view.
+    for (const key of ['contextBreakdown', 'contextPressure', 'tokenUsage'] as const) {
+      expect(after.values[key]).toBeDefined()
+    }
+    expect(() => JSON.stringify(ctx.sessionProjections.checkpoint(Session.create(session.id, events)))).not.toThrow()
+
+    // Recorded behavior: a surface `replace` with no adjacent compaction claim
+    // folds at zero delta, so none of the three figures shrinks when the rewind
+    // shadows the messages it withdrew. The breakdown joined this protocol in
+    // 0.2.1-alpha.3 (stateVersion 6); the pressure unit has always folded so.
+    expect(after.values.contextBreakdown).toEqual(before.values.contextBreakdown)
+    expect(after.values.contextPressure).toEqual(before.values.contextPressure)
+    expect(after.values.tokenUsage).toEqual(before.values.tokenUsage)
   })
 })

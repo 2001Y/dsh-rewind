@@ -1,29 +1,36 @@
-# Node
+# Machine-local
+AGENTS.local.md
+/internal
+
+# Dependencies
 node_modules/
 
-# Build output
-lib/
-
-# TypeScript
+# Build and release artifacts
+/lib
+*.tgz
 *.tsbuildinfo
 
-# Test / tooling scratch (CI writes vitest JSON reporter output here)
+# Test output
+coverage/
+
+# Scratch
 .tmp/
 tmp/
 
-# Local overrides (git-ignored by design; DSH loads the local overlay as AGENTS.local.md)
-AGENTS.local.md
-hello-dsh.txt
-internal/
+# Local environment / secrets
+.env
+.env.*
+!.env.example
 
 # Logs
 *.log
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
 
-# OS / editor
-.DS_Store
+# Editors and OS
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
 .idea/
-.vscode/
+.DS_Store
+Thumbs.db

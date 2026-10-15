@@ -604,7 +604,7 @@ async function syncRestoreObservations(
   for (const path of outcome.restored) {
     const target = await resolveObservationTarget(fs, path)
     if (target === undefined) continue
-    const info = await fs.stat(target)
+    const info = await fs.stat(target).catch(() => undefined)
     if (info === undefined) continue
     ctx.emit('fs/observed', target, { kind: 'present', version: info.version }, actor)
   }

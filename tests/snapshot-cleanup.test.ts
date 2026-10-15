@@ -13,6 +13,7 @@ import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
 import { DEFAULT_MAX_FILE_BYTES, MAX_ANCHOR_GROUPS, SnapshotStore } from '../src/snapshot.ts'
 import { Config } from '../src/index.ts'
 import {
+  AUTO_SWEEP_INTERVAL_MS,
   DEFAULT_CLEANUP_CONFIG,
   DEFAULT_MAX_AGE_DAYS,
   loadLastSweepAt,
@@ -220,6 +221,14 @@ describe('runAutoCleanupCheck', () => {
     await expect(loadLastSweepAt(state)).resolves.toBeGreaterThan(now() - day)
   })
 
+  it('uses the configured cadence for the throttle', async () => {
+    await seedStale('old', now() - 40 * day)
+    // Swept two hours ago: the daily default throttles, an hourly cadence is due.
+    await saveLastSweepAt(state, now() - 2 * 60 * 60_000)
+    await runAutoCleanupCheck({ ...deps(enabled()), intervalMs: 60 * 60_000 }, 'active')
+    await expect(staleExists('old')).resolves.toBe(false)
+  })
+
   it('does nothing when throttled (recent window)', async () => {
     await seedStale('old', now() - 40 * day)
     const recent = now() - 60_000
@@ -352,6 +361,13 @@ describe('Config schema + volatileCleanupStore', () => {
     }
     for (const value of [0, -1, 2.5, Number.NaN]) {
       expect(() => Config({ maxAnchorGroups: value } as never)).toThrow()
+    }
+  })
+
+  it('the Config schema defaults and validates the sweep cadence', () => {
+    expect((Config({} as never) as { autoSweepIntervalMs: number }).autoSweepIntervalMs).toBe(AUTO_SWEEP_INTERVAL_MS)
+    for (const value of [0, -1, 1.5, Number.NaN]) {
+      expect(() => Config({ autoSweepIntervalMs: value } as never)).toThrow()
     }
   })
 

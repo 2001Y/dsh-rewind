@@ -35,7 +35,7 @@
 
 ## 自动清理何时运行
 
-开启后，自动清理在后台运行，**一天最多一次**——且距上次清理已满 24 小时才会执行。这个时钟保存在 `<dsh home>/snapshot-cleanup-last-sweep.json`，所以重启宿主也不会让它提前运行。想立刻清理而不等待，用 `/snapshot-auto-cleanup run`。
+开启后，自动清理在后台运行，**每个周期最多一次**——默认一天（配置项 `autoSweepIntervalMs`），且距上次清理已满该周期才会执行。这个时钟保存在 `<dsh home>/snapshot-cleanup-last-sweep.json`，所以重启宿主也不会让它提前运行。想立刻清理而不等待，用 `/snapshot-auto-cleanup run`。
 
 ## 安全
 

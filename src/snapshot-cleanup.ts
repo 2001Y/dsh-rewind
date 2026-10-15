@@ -105,7 +105,7 @@ export function volatileCleanupStore(
   }
 }
 
-/** Auto-sweep cadence (the user's hardcoded 24h rhythm — not user-set). */
+/** Default auto-sweep cadence (once a day); `autoSweepIntervalMs` overrides it. */
 export const AUTO_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
 
 /** The state file that records the last automatic-sweep wall-clock time. */
@@ -177,6 +177,8 @@ export async function runAutoCleanupCheck(
     readConfig: () => Promise<{ ok: true; config: CleanupConfig } | { ok: false; error: string }>
     statePath: string
     log: (msg: string) => void
+    /** Sweep cadence in ms; defaults to {@link AUTO_SWEEP_INTERVAL_MS}. */
+    intervalMs?: number
     /** Optional mount lifecycle signal; absent means "never cancelled". */
     signal?: AbortSignal
   },
@@ -190,11 +192,11 @@ export async function runAutoCleanupCheck(
     }
     if (!loaded.config.enabled) return
     if (isAborted(deps.signal)) return
-    if (!shouldRunAutoSweep(await loadLastSweepAt(deps.statePath), Date.now())) return
+    if (!shouldRunAutoSweep(await loadLastSweepAt(deps.statePath), Date.now(), deps.intervalMs)) return
     if (isAborted(deps.signal)) return
     await deps.pruner.pruneStale({ keepActiveId: sessionId, maxAgeDays: loaded.config.maxAgeDays })
     // Re-anchoring after an unload would claim a sweep that a fresh mount then
-    // skips for 24h, so the window only moves while the mount is alive.
+    // skips for a full cadence, so the window only moves while the mount is alive.
     if (isAborted(deps.signal)) return
     await saveLastSweepAt(deps.statePath, Date.now())
   } catch (error) {
@@ -284,10 +286,10 @@ export function parseCleanupCommand(rawInput: string): CleanupCommand | { error:
 }
 
 /**
- * The 24h auto-sweep throttle. `lastAtMs` of `0` means "never ran" (a fresh
- * process), so the first call always sweeps; after that a call within 24h is
- * a no-op, matching the "every machine at most once per day" model.
+ * The auto-sweep throttle: `lastAtMs` of `0` means "never ran" (a fresh
+ * process), so the first call always sweeps; after that a call within
+ * `intervalMs` is a no-op. `autoSweepIntervalMs` sets the cadence.
  */
-export function shouldRunAutoSweep(lastAtMs: number, nowMs: number): boolean {
-  return nowMs - lastAtMs >= AUTO_SWEEP_INTERVAL_MS
+export function shouldRunAutoSweep(lastAtMs: number, nowMs: number, intervalMs = AUTO_SWEEP_INTERVAL_MS): boolean {
+  return nowMs - lastAtMs >= intervalMs
 }

@@ -38,6 +38,7 @@ import { preferredLocale, translate, type HostKey, type HostLocaleId } from './l
 import { formatCandidateList, listRewindCandidates, parseRewindTarget, planRewind, REWIND_MARKER_SOURCE, RewindError, type RewindMode, type RewindPlan } from './rewind.ts'
 import { DEFAULT_MAX_FILE_BYTES, MAX_ANCHOR_GROUPS, reconcileTracked, SnapshotStore, UnknownStoreVersionError, type ClearSessionReport, type PendingBackup, type PruneStaleReport, type RestoreOutcome, type UncoveredPath } from './snapshot.ts'
 import {
+  AUTO_SWEEP_INTERVAL_MS,
   DEFAULT_CLEANUP_CONFIG,
   parseCleanupCommand,
   resolveCleanupStatePath,
@@ -75,6 +76,8 @@ export interface RewindConfig {
   readonly maxFileBytes?: number
   /** Newest anchor groups (user messages) kept per session. Default {@link MAX_ANCHOR_GROUPS}. */
   readonly maxAnchorGroups?: number
+  /** Automatic snapshot-sweep cadence in ms. Default {@link AUTO_SWEEP_INTERVAL_MS}. */
+  readonly autoSweepIntervalMs?: number
 }
 
 /**
@@ -97,6 +100,7 @@ export const Config = z.object({
   dedup: z.boolean().default(true),
   maxFileBytes: z.number().step(1).min(0).default(DEFAULT_MAX_FILE_BYTES),
   maxAnchorGroups: z.number().step(1).min(1).default(MAX_ANCHOR_GROUPS),
+  autoSweepIntervalMs: z.number().step(1).min(1).default(AUTO_SWEEP_INTERVAL_MS),
   autoCleanupEnabled: z.boolean().default(DEFAULT_CLEANUP_CONFIG.enabled).volatile(),
   autoCleanupMaxAgeDays: z.number().step(1).min(1).default(DEFAULT_CLEANUP_CONFIG.maxAgeDays).volatile(),
 })
@@ -870,10 +874,10 @@ let autoSweepChecked = false
 /**
  * One-shot lazy auto-cleanup gate. The FIRST session activity of a mount (a
  * user message or a tool result) performs a single check: it reads the policy
- * and the persisted last-sweep time and, only when enabled AND >=24h since the
- * last sweep, runs the sweep and re-anchors the 24h window on disk. After that
- * one check the mount stops considering auto-cleanup (a mount reads the policy
- * at most once), while the 24h cadence survives a restart because the
+ * and the persisted last-sweep time and, only when enabled AND the configured
+ * cadence has elapsed, runs the sweep and re-anchors the window on disk. After
+ * that one check the mount stops considering auto-cleanup (a mount reads the
+ * policy at most once), while the cadence survives a restart because the
  * last-sweep time is persisted rather than kept in memory. Runs in the
  * background (voided by callers) and NEVER rejects: an invalid config
  * fail-closes (deletes nothing) and logs, and a prune failure logs — neither
@@ -890,6 +894,7 @@ async function maybeRunAutoCleanup(
   store: SnapshotStore,
   sessionId: string | undefined,
   dshHome: string | undefined,
+  sweepIntervalMs: number | undefined,
   signal: AbortSignal | undefined,
 ): Promise<void> {
   if (autoSweepChecked || signal?.aborted === true) return
@@ -900,6 +905,7 @@ async function maybeRunAutoCleanup(
       readConfig: () => readCleanupPolicy(),
       statePath: resolveCleanupStatePath(dshHome),
       log: msg => ctx.logger.warn(msg),
+      ...(sweepIntervalMs === undefined ? {} : { intervalMs: sweepIntervalMs }),
       ...(signal === undefined ? {} : { signal }),
     }, sessionId)
   } catch (error) {
@@ -1333,9 +1339,9 @@ export function apply(ctx: Context, config?: Config): void {
       try {
         if (lifecycle.signal.aborted) return
         const sessionId = session.id
-        // Lazy 24h auto-cleanup: a user message is the practical first trigger
-        // of a day; it runs in the background and fail-closes on config error.
-        void maybeRunAutoCleanup(ctx, store, sessionId, dshHome, lifecycle.signal)
+        // Lazy auto-cleanup: a user message is the practical first trigger of a
+        // day; it runs in the background and fail-closes on config error.
+        void maybeRunAutoCleanup(ctx, store, sessionId, dshHome, config?.autoSweepIntervalMs, lifecycle.signal)
         let tracked = trackedBySession.get(sessionId)
         if (tracked === undefined) {
           tracked = await store.trackedPaths(sessionId)
@@ -1377,7 +1383,7 @@ export function apply(ctx: Context, config?: Config): void {
         // triggers the same one-shot sweep with the correct id.
         const session = exec.agent?.session
         if (session !== undefined && !isSubagentSession(session)) {
-          void maybeRunAutoCleanup(ctx, store, session.id, dshHome, lifecycle.signal)
+          void maybeRunAutoCleanup(ctx, store, session.id, dshHome, config?.autoSweepIntervalMs, lifecycle.signal)
         }
         await commitEntry(store, pending, anchorCache, trackedBySession, exec, result)
       } catch (error) {

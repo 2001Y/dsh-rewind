@@ -46,8 +46,9 @@ configuration card, or with the `/snapshot-auto-cleanup` command:
 
 ## When automatic cleanup runs
 
-When it's enabled, automatic cleanup runs in the background at most **once a
-day** — and only after 24 hours have passed since the last cleanup. The clock is
+When it's enabled, automatic cleanup runs in the background at most **once per
+cadence** — one day by default (`autoSweepIntervalMs`) — and only after that gap
+has passed since the last cleanup. The clock is
 saved to `<dsh home>/snapshot-cleanup-last-sweep.json`, so restarting the host
 can't make it run early. To clean up right now instead of waiting, use
 `/snapshot-auto-cleanup run`.

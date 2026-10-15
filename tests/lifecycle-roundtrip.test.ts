@@ -19,8 +19,9 @@ import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { en as enLocale, zh as zhLocale } from '../src/locales.ts'
 import { apply, cleanupConfigKey, ENGINE_COMMAND, inject } from '../src/index.ts'
+import { CURRENT_STORE_VERSION, SnapshotStore } from '../src/snapshot.ts'
 import { resolveCleanupStatePath } from '../src/snapshot-cleanup.ts'
-import { testConfig, textMessage } from './helpers.ts'
+import { buildTurnedSession, testConfig, textMessage } from './helpers.ts'
 
 /** A function a mount yielded; its return value is awaited on dispose. */
 type Disposer = () => unknown
@@ -244,6 +245,38 @@ describe('host mount lifecycle', () => {
     expect(await waitForStagedDrain()).toEqual([])
     await mounted.dispose()
     expect(await stagedFiles()).toEqual([])
+  })
+
+  it('drops the staged capture when the commit is refused by a newer store', async () => {
+    // The store was written by a NEWER build: `recordBackup` refuses (ADR-10),
+    // so the commit throws AFTER `tools/execute` already staged the bytes. Those
+    // bytes have no owner left — `.pending/` is only collected from a successful
+    // commit of the same session, which a refused store never reaches.
+    const session = buildTurnedSession()
+    await new SnapshotStore(snapRoot).markStoreVersion(session.id, CURRENT_STORE_VERSION + 1)
+
+    const mounted = mount({ fs: true })
+    apply(mounted.ctx, testConfig({ snapshotDir: snapRoot }))
+    const target = join(root, 'refused.txt')
+    await writeFile(target, 'before', 'utf8')
+    const exec = {
+      name: 'write',
+      callId: 'call-1',
+      arguments: { file_path: target },
+      agent: { id: 'agent-1', session },
+      signal: undefined,
+    }
+    await mounted.toolHandlers.get('tools/execute')!(exec as never, (async () => ({ ok: true })) as never)
+    expect(await stagedFiles()).toHaveLength(1)
+
+    await mounted.toolHandlers.get('tools/post-execute')!(
+      exec as never,
+      { isError: false } as never,
+      (async () => ({ kind: 'next' })) as never,
+    )
+
+    expect(await waitForStagedDrain()).toEqual([])
+    await mounted.dispose()
   })
 })
 

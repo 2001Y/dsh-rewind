@@ -404,11 +404,21 @@ async function commitEntry(
     await discardCapture(capture)
     return
   }
-  await store.recordBackup(agent.session.id, {
-    callId: exec.callId,
-    anchorSeq,
-    path: capture.path,
-  }, capture.backup)
+  try {
+    await store.recordBackup(agent.session.id, {
+      callId: exec.callId,
+      anchorSeq,
+      path: capture.path,
+    }, capture.backup)
+  } catch (error) {
+    // A refused commit (a store written by a newer build, an IO failure) leaves
+    // the staged bytes with no owner: the capture already left `pending` above,
+    // so the `tools/result` net cannot reach them, and `.pending/` is collected
+    // only from a LATER successful commit of the same session — which a refused
+    // store never reaches. Drop them here and keep the failure loud.
+    await discardCapture(capture)
+    throw error
+  }
   // The path is now a tracked file: remember it for the boundary re-check
   // (the per-session set may not have been loaded yet — seed it lazily).
   let tracked = trackedBySession.get(agent.session.id)

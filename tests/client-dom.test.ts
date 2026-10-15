@@ -338,7 +338,7 @@ describe('resolveSeatAnchorSeq (withdrawn-seat hiding)', () => {
     document.body.appendChild(userSeat)
     const processSeat = appendMember('a1', 'reasoning')
 
-    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqs, new WeakSet())
+    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqs, new Set())
 
     expect(userSeat.style.display).toBe('none')
     // The pre-fix behaviour: a composite-key seat resolved to undefined and
@@ -356,7 +356,7 @@ describe('resolveSeatAnchorSeq (withdrawn-seat hiding)', () => {
     ])
     const shell = appendShell([appendMember('a1', 'reasoning')])
 
-    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqsOf(chat), new WeakSet())
+    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqsOf(chat), new Set())
 
     expect(shell.style.display).toBe('none')
     expect(shell.dataset.dshRewindHidden).toBe('true')
@@ -382,7 +382,7 @@ describe('resolveSeatAnchorSeq (withdrawn-seat hiding)', () => {
     nodeSeat.appendChild(callRow)
     const shell = appendShell([nodeSeat])
 
-    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqsOf(chat), new WeakSet())
+    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqsOf(chat), new Set())
 
     expect(nodeSeat.style.display).toBe('none')
     expect(shell.style.display).toBe('none')
@@ -396,7 +396,7 @@ describe('resolveSeatAnchorSeq (withdrawn-seat hiding)', () => {
     const chat = chatWith([['u1', userNode(5)], ['m1', markerCommand(9, 5)]])
     const shell = appendShell([])
 
-    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqsOf(chat), new WeakSet())
+    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqsOf(chat), new Set())
 
     expect(shell.style.display).toBe('')
     expect(shell.dataset.dshRewindHidden).toBeUndefined()
@@ -416,7 +416,7 @@ describe('resolveSeatAnchorSeq (withdrawn-seat hiding)', () => {
       appendMember('a2', 'reasoning'),
     ])
 
-    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqsOf(chat), new WeakSet())
+    hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), hiddenSeqsOf(chat), new Set())
 
     expect(shell.style.display).toBe('')
     expect(shell.dataset.dshRewindHidden).toBeUndefined()
@@ -427,7 +427,7 @@ describe('resolveSeatAnchorSeq (withdrawn-seat hiding)', () => {
     // member goes cannot make it impossible to show again when a member returns.
     const chat = chatWith([['a1', assistantNode(6)]])
     const shell = appendShell([appendMember('a1', 'reasoning')])
-    const hidden = new WeakSet<HTMLElement>()
+    const hidden = new Set<HTMLElement>()
 
     hideWithdrawnSeats(chat, document.querySelectorAll('[data-chat-anchor-key]'), new Set([6]), hidden)
     expect(shell.style.display).toBe('none')
@@ -447,7 +447,7 @@ describe('resolveSeatAnchorSeq (withdrawn-seat hiding)', () => {
     // re-entered refresh as a microtask and froze the renderer.
     const chat = chatWith([['a1', assistantNode(6)]])
     const shell = appendShell([appendMember('a1', 'reasoning')])
-    const hidden = new WeakSet<HTMLElement>()
+    const hidden = new Set<HTMLElement>()
     const seats = document.querySelectorAll<HTMLElement>('[data-chat-anchor-key]')
 
     hideWithdrawnSeats(chat, seats, new Set([6]), hidden)

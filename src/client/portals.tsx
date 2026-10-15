@@ -504,7 +504,7 @@ export function hideWithdrawnSeats(
   chat: HiddenChat | undefined,
   seats: Iterable<HTMLElement>,
   hiddenSeqs: ReadonlySet<number>,
-  hidden: WeakSet<HTMLElement>,
+  hidden: Set<HTMLElement>,
 ): void {
   if (chat === undefined) return
   // Shell → "every member in this batch was withdrawn". A shell is only judged
@@ -549,6 +549,25 @@ export function hideWithdrawnSeats(
       hidden.delete(shell)
     }
   }
+}
+
+/**
+ * Undo every hide the given set recorded, so a live disable (or a session-slot
+ * collapse) cannot leave the transcript truncated.
+ *
+ * The hide is the plugin's OWN mutation of host rows ({@link hideWithdrawnSeats}),
+ * and nothing else would ever revert it: a disposed bridge runs no further
+ * refresh, so rows it hid would stay hidden with no affordance to bring them
+ * back.
+ *
+ * @param hidden - the elements this bridge currently hides; emptied.
+ */
+export function showHiddenSeats(hidden: Set<HTMLElement>): void {
+  for (const element of hidden) {
+    element.style.display = ''
+    delete element.dataset.dshRewindHidden
+  }
+  hidden.clear()
 }
 
 /**
@@ -747,8 +766,11 @@ interface RewindPortalsProps extends RewindBridgeDeps {
  */
 export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession, watchChat, t, subscribeLocale, setComposerText, restoreImages }: RewindPortalsProps): ReactNode {
   const [targets, setTargets] = useState<readonly PortalTarget[]>([])
-  // Rows we have hidden; re-shown when they leave the withdrawn span.
-  const hidden = useRef(new WeakSet<HTMLElement>())
+  // Rows this bridge has hidden; re-shown when they leave the withdrawn span.
+  // A strong set (not a WeakSet) so the unmount can restore exactly what THIS
+  // bridge hid — the `refresh` prunes detached nodes, so a long session cannot
+  // retain the rows React has already discarded.
+  const hidden = useRef(new Set<HTMLElement>())
   // Re-render when the active locale switches so injected button labels
   // keep following the dsh language preference (the popover and guard hint
   // are created fresh each time and already read the current locale).
@@ -791,6 +813,10 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
       // Apply the hide to this batch's seats (and the group shells they empty):
       // `document.querySelectorAll(CHAT_SEAT_SELECTOR)` is the batch, re-read on
       // every refresh because React recreates rows.
+      // The set is strong so the unmount can restore what this bridge hid: drop
+      // the rows React has already discarded first, so it stays bounded to the
+      // live transcript.
+      for (const element of hidden.current) if (!element.isConnected) hidden.current.delete(element)
       hideWithdrawnSeats(
         chat,
         chat === undefined ? [] : document.querySelectorAll<HTMLElement>(CHAT_SEAT_SELECTOR),
@@ -852,6 +878,9 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
     return () => {
       active = false
       observer.disconnect()
+      // The hides are this bridge's own mutation of host rows: undo them, or a
+      // live disable leaves the transcript truncated for good.
+      showHiddenSeats(hidden.current)
       unsubscribeInbox?.()
       unsubscribeInbox = undefined
       inboxOwner = undefined

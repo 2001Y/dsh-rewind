@@ -177,8 +177,8 @@ versions on disk.
   (a staged capture is `rename`d out of `.pending/`; other sources are written
   temp-then-rename) and only then publishes the entry JSON, so a crash can
   leave an unreferenced sidecar but never an entry whose bytes are missing.
-  A sidecar that is missing or shorter than `size` is a per-file failure, never
-  a silent "the file was created".
+  A sidecar that is missing, or whose size differs from `size`, is a per-file
+  failure — never a silent "the file was created".
 - **Pinned location**: every record this build writes — entry, link and journal
   action — carries where the tracked file's directory resolved at commit time
   (the `parent` pin, best-effort), and a restore re-checks it before touching the

@@ -91,9 +91,10 @@ hides the `[target, marker]` span from the rendered transcript.
 ## Filesystem containment
 
 - **Store root**: `<dsh home>/rewind-snapshots/` by default (resolved via
-  `resolveDshHome`, so `~/.dsh/...` when `DSH_HOME` is unset); the `snapshotDir`
-  config, then `DSH_REWIND_SNAPSHOT_DIR` env, override it. Deleting it only
-  removes file backups and the store rebuilds from scratch.
+  `resolveDshHome`, so `$DSH_HOME` feeds the base and `~/.dsh` is the fallback);
+  the `snapshotDir` config overrides the whole path. The plugin reads no
+  environment variable of its own. Deleting the root only removes file backups
+  and the store rebuilds from scratch.
 - **Path sanitization**: session ids and call ids are scrubbed to
   `[a-zA-Z0-9._-]` (`safeSessionId` / `safeFileId`) before joining the store
   root; `.` and `..` bare values are replaced — hostile ids cannot traverse

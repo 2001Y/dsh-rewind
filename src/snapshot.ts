@@ -70,27 +70,14 @@ const COMPARE_CHUNK_BYTES = 64 * 1024
 /** The Unicode replacement character a lossy UTF-8 decode produces. */
 const REPLACEMENT_CHAR = '\uFFFD'
 
-/** Environment variable overriding the store root (tests, exotic homes). */
-export const SNAPSHOT_ROOT_ENV = 'DSH_REWIND_SNAPSHOT_DIR'
-
-/** Env override for the per-file backup cap (`0` = unlimited); tests set it too. */
-export const MAX_FILE_BYTES_ENV = 'DSH_REWIND_MAX_FILE_BYTES'
-
 /**
  * A regular file larger than this is NOT backed up. This plugin is a
  * lightweight, conversation-scoped undo, not a backup system: copying a very
  * large file on every edit is what grows the store without bound and saturates
- * IO (issue #39). The cap is a declared limitation, not a delta scheme.
+ * IO (issue #39). The cap is a declared limitation, not a delta scheme, and is
+ * exposed as the `maxFileBytes` config field (`0` disables the cap).
  */
 export const DEFAULT_MAX_FILE_BYTES = 8 * 1024 * 1024
-
-/** The env override, or `undefined` when unset/unparsable (`0` means no cap). */
-function maxFileBytesFromEnv(): number | undefined {
-  const raw = process.env[MAX_FILE_BYTES_ENV]?.trim()
-  if (raw === undefined || raw === '') return undefined
-  const parsed = Number(raw)
-  return Number.isInteger(parsed) ? parsed : undefined
-}
 
 /** Number of newest anchor groups (user messages) kept per session. */
 export const MAX_ANCHOR_GROUPS = 100
@@ -1069,6 +1056,12 @@ export class SnapshotStore {
    */
   private readonly maxFileBytes: number
 
+  /**
+   * Newest anchor groups (user messages) kept per session; `prune` evicts past
+   * this bound. A `Config` field (`maxAnchorGroups`).
+   */
+  private readonly maxAnchorGroups: number
+
   /** Resolved checkpoint store root (absolute); see the constructor's fallback. */
   readonly root: string
 
@@ -1104,20 +1097,19 @@ export class SnapshotStore {
       readonly dshHome?: string
       /** Per-file backup cap in bytes; `<= 0` disables it. */
       readonly maxFileBytes?: number
+      /** Newest anchor groups kept per session; see {@link MAX_ANCHOR_GROUPS}. */
+      readonly maxAnchorGroups?: number
     },
   ) {
     this.dedup = opts?.dedup ?? true
-    // An explicit option wins; then the env override; then the default. An
-    // unparsable env value falls back to the default, never to "unlimited" — a
-    // typo must not silently disable the guard.
-    this.maxFileBytes = opts?.maxFileBytes ?? maxFileBytesFromEnv() ?? DEFAULT_MAX_FILE_BYTES
+    this.maxFileBytes = opts?.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES
+    this.maxAnchorGroups = opts?.maxAnchorGroups ?? MAX_ANCHOR_GROUPS
     // Deterministic store-root fallback (highest first): an explicit root
-    // (config `snapshotDir`) → `DSH_REWIND_SNAPSHOT_DIR` env → the harness-home
-    // base derived from `config.dshHome` (via resolveDshHome: config.dshHome >
-    // `$DSH_HOME` > `~/.dsh`) plus `rewind-snapshots`.
-    this.root = root
-      ?? process.env[SNAPSHOT_ROOT_ENV]
-      ?? join(resolveDshHome(opts?.dshHome), SNAPSHOT_DIR_NAME)
+    // (config `snapshotDir`) → the harness-home base derived from
+    // `config.dshHome` (via resolveDshHome: config.dshHome > `$DSH_HOME` >
+    // `~/.dsh`) plus `rewind-snapshots`. No ambient env override: the config
+    // field is the one owner of this path.
+    this.root = root ?? join(resolveDshHome(opts?.dshHome), SNAPSHOT_DIR_NAME)
   }
 
   /** Absolute path of one session's snapshot directory (id sanitized). */
@@ -2310,7 +2302,7 @@ export class SnapshotStore {
    * real is still on disk and the kept link still resolves, so nothing dangles
    * and a later prune simply re-materializes.
    */
-  async prune(sessionId: string, keep = MAX_ANCHOR_GROUPS, opts?: { readonly crash?: (point: CrashPoint) => void }): Promise<void> {
+  async prune(sessionId: string, keep = this.maxAnchorGroups, opts?: { readonly crash?: (point: CrashPoint) => void }): Promise<void> {
     const sessionDir = this.sessionDir(sessionId)
     let names: string[]
     try {

@@ -36,7 +36,7 @@ import type {} from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 import { preferredLocale, translate, type HostKey, type HostLocaleId } from './locales.ts'
 import { formatCandidateList, listRewindCandidates, parseRewindTarget, planRewind, REWIND_MARKER_SOURCE, RewindError, type RewindMode, type RewindPlan } from './rewind.ts'
-import { reconcileTracked, SnapshotStore, UnknownStoreVersionError, type ClearSessionReport, type PendingBackup, type PruneStaleReport, type RestoreOutcome, type UncoveredPath } from './snapshot.ts'
+import { DEFAULT_MAX_FILE_BYTES, MAX_ANCHOR_GROUPS, reconcileTracked, SnapshotStore, UnknownStoreVersionError, type ClearSessionReport, type PendingBackup, type PruneStaleReport, type RestoreOutcome, type UncoveredPath } from './snapshot.ts'
 import {
   DEFAULT_CLEANUP_CONFIG,
   parseCleanupCommand,
@@ -65,12 +65,16 @@ export const ENGINE_COMMAND = 'rewind-plugin'
 
 /** Plugin config. */
 export interface RewindConfig {
-  /** Checkpoint store root (exact path; beats `DSH_REWIND_SNAPSHOT_DIR` and the harness-home default). */
+  /** Checkpoint store root (exact path; beats the harness-home default). */
   readonly snapshotDir?: string
   /** Harness home override (`config.dshHome` > `$DSH_HOME` > `~/.dsh`); feeds the default snapshot/cleanup paths. */
   readonly dshHome?: string
   /** In-place content dedup (identical before-content → link). Default `true`. */
   readonly dedup?: boolean
+  /** Per-file backup cap in bytes; `0` disables the cap. Default {@link DEFAULT_MAX_FILE_BYTES}. */
+  readonly maxFileBytes?: number
+  /** Newest anchor groups (user messages) kept per session. Default {@link MAX_ANCHOR_GROUPS}. */
+  readonly maxAnchorGroups?: number
 }
 
 /**
@@ -91,6 +95,8 @@ export const Config = z.object({
   snapshotDir: z.string().required(false),
   dshHome: z.string().required(false),
   dedup: z.boolean().default(true),
+  maxFileBytes: z.number().step(1).min(0).default(DEFAULT_MAX_FILE_BYTES),
+  maxAnchorGroups: z.number().step(1).min(1).default(MAX_ANCHOR_GROUPS),
   autoCleanupEnabled: z.boolean().default(DEFAULT_CLEANUP_CONFIG.enabled).volatile(),
   autoCleanupMaxAgeDays: z.number().step(1).min(1).default(DEFAULT_CLEANUP_CONFIG.maxAgeDays).volatile(),
 })
@@ -1133,7 +1139,12 @@ export function apply(ctx: Context, config?: Config): void {
   })
 
   const dshHome = config?.dshHome
-  const store = new SnapshotStore(config?.snapshotDir, { dedup: config?.dedup, dshHome })
+  const store = new SnapshotStore(config?.snapshotDir, {
+    dedup: config?.dedup,
+    dshHome,
+    maxFileBytes: config?.maxFileBytes,
+    maxAnchorGroups: config?.maxAnchorGroups,
+  })
   // The cleanup policy reads the config's live references, so a settings write
   // is visible here without a remount; writes go through the settings service's
   // entry API, which is the only owner of the document and addresses entries by

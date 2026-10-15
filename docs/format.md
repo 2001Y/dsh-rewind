@@ -8,10 +8,11 @@ and this spec disagree, the code wins and this spec is a bug.
 ## State root
 
 The store root defaults to `<dsh home>/rewind-snapshots/` — the dsh data
-directory (`~/.dsh/rewind-snapshots/` when `DSH_HOME` is unset) — overridable in
-order by the `snapshotDir` plugin config, then the `DSH_REWIND_SNAPSHOT_DIR`
-environment variable. It is a sibling of the workspace, never a subtree of it.
-Deleting the root only removes file backups; the store rebuilds from scratch.
+directory (`~/.dsh/rewind-snapshots/` when `$DSH_HOME` is unset, resolved via
+`resolveDshHome`) — and is overridden by the `snapshotDir` plugin config. The
+plugin reads no environment variable of its own. It is a sibling of the
+workspace, never a subtree of it. Deleting the root only removes file backups;
+the store rebuilds from scratch.
 
 ```
 <root>/

@@ -123,6 +123,16 @@ describe('SnapshotStore', () => {
     expect(await store.entriesAfter(session, 4)).toHaveLength(2) // 4..5 kept
   })
 
+  it('applies the configured maxAnchorGroups when prune gets no explicit bound', async () => {
+    const bounded = new SnapshotStore(root, { maxAnchorGroups: 2, dedup: false })
+    const file = await touch('bounded.txt', '0')
+    for (let seq = 1; seq <= 5; seq++) {
+      await bounded.recordEntry(session, { callId: `b${seq}`, anchorSeq: seq, path: file, before: '0' })
+    }
+    await bounded.prune(session)
+    expect(await bounded.entriesAfter(session, 1)).toHaveLength(2) // 1..3 pruned, 4..5 kept
+  })
+
   it('survives a store re-instantiation (host restart)', async () => {
     const file = await touch('persist.txt', 'v1')
     await store.recordEntry(session, { callId: 'c1', anchorSeq: 5, path: file, before: 'v1' })
@@ -1160,12 +1170,9 @@ describe('session format-version reconcile', () => {
 
 describe('store-root default (harness-home resolution)', () => {
   const prevHome = process.env.DSH_HOME
-  const prevOverride = process.env.DSH_REWIND_SNAPSHOT_DIR
   afterEach(() => {
     if (prevHome === undefined) delete process.env.DSH_HOME
     else process.env.DSH_HOME = prevHome
-    if (prevOverride === undefined) delete process.env.DSH_REWIND_SNAPSHOT_DIR
-    else process.env.DSH_REWIND_SNAPSHOT_DIR = prevOverride
   })
 
   it('follows $DSH_HOME when set', async () => {
@@ -1185,15 +1192,8 @@ describe('store-root default (harness-home resolution)', () => {
     expect(s.root.endsWith(join('.dsh', 'rewind-snapshots'))).toBe(true)
   })
 
-  it('DSH_REWIND_SNAPSHOT_DIR env overrides the harness-home default', () => {
+  it('an explicit root (config snapshotDir) beats the harness-home default', () => {
     process.env.DSH_HOME = join(tmpdir(), 'dsh-home-a')
-    const override = join(tmpdir(), 'override')
-    process.env.DSH_REWIND_SNAPSHOT_DIR = override
-    expect(new SnapshotStore().root).toBe(override)
-  })
-
-  it('explicit root (snapshotDir) beats the env override', () => {
-    process.env.DSH_REWIND_SNAPSHOT_DIR = join(tmpdir(), 'override')
     const explicit = join(tmpdir(), 'explicit')
     expect(new SnapshotStore(explicit).root).toBe(explicit)
   })

@@ -10,7 +10,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
-import { SnapshotStore } from '../src/snapshot.ts'
+import { DEFAULT_MAX_FILE_BYTES, MAX_ANCHOR_GROUPS, SnapshotStore } from '../src/snapshot.ts'
 import { Config } from '../src/index.ts'
 import {
   DEFAULT_CLEANUP_CONFIG,
@@ -338,6 +338,21 @@ describe('Config schema + volatileCleanupStore', () => {
 
   it('the Config schema rejects a non-boolean autoCleanupEnabled', () => {
     expect(() => Config({ autoCleanupEnabled: 'yes' } as never)).toThrow()
+  })
+
+  it('the Config schema defaults and validates the store bounds', () => {
+    const resolved = Config({} as never) as { maxFileBytes: number; maxAnchorGroups: number }
+    expect(resolved.maxFileBytes).toBe(DEFAULT_MAX_FILE_BYTES)
+    expect(resolved.maxAnchorGroups).toBe(MAX_ANCHOR_GROUPS)
+    // `0` is the documented "no cap" value; the group bound must stay >= 1 so a
+    // configuration typo can never evict every snapshot.
+    expect((Config({ maxFileBytes: 0, maxAnchorGroups: 1 } as never) as { maxFileBytes: number }).maxFileBytes).toBe(0)
+    for (const value of [-1, 1.5, Number.NaN]) {
+      expect(() => Config({ maxFileBytes: value } as never)).toThrow()
+    }
+    for (const value of [0, -1, 2.5, Number.NaN]) {
+      expect(() => Config({ maxAnchorGroups: value } as never)).toThrow()
+    }
   })
 
   it('load() reads the live references, defaulting an absent value', () => {

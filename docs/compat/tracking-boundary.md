@@ -62,9 +62,9 @@ Backups come from two sources:
   file later in the same turn, that before-write backup is still recorded. A message
   that changed no file therefore produces no backup of its own.
 - **Over the cap, not stored**: before writing a backup, if a single file is found to
-  exceed the size cap (8 MiB by default, adjustable via `DSH_REWIND_MAX_FILE_BYTES`,
-  `0` disables it), the plugin **refuses the backup**; until that file is back under
-  the cap, no new backup is written for it (the earlier backups remain).
+  exceed the size cap (8 MiB by default, adjustable with the `maxFileBytes` plugin
+  config, `0` disables it), the plugin **refuses the backup**; until that file is back
+  under the cap, no new backup is written for it (the earlier backups remain).
 
 ### Restore: backups are the only standard
 

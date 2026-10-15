@@ -79,10 +79,10 @@ await mkdir(wsDir, { recursive: true })
 
 // A deliberately TINY per-file backup cap so the size-cap checks below cross it
 // with a few KiB instead of 8 MiB. Every other fixture in this file is far
-// smaller, so the cap is transparent to them. Set before any store exists: the
-// cap is read when a store is constructed.
+// smaller, so the cap is transparent to them. It travels through the plugin's
+// own `Config` (there is no env override any more), so it is pinned on the
+// config the store is constructed from.
 const CAP_BYTES = 1024 * 1024
-process.env.DSH_REWIND_MAX_FILE_BYTES = String(CAP_BYTES)
 
 /** Real-filesystem fs double: resolve returns the real display path. */
 class FakeFs extends FileSystem {
@@ -119,7 +119,7 @@ const fakeWorkingDirectory = { ensure: async () => sessionDirectory }
 // The plugin's own `Config` schema resolves the live cleanup references (the
 // same call the Loader makes), and `tmpRoot` stays unrouted: `snapshotDir` /
 // `dshHome` are pinned by the config below.
-const resolvedConfig = Config({ snapshotDir: snapRoot, dshHome: tmpRoot })
+const resolvedConfig = Config({ snapshotDir: snapRoot, dshHome: tmpRoot, maxFileBytes: CAP_BYTES })
 // The fake entry's stored user layer, under the DOCUMENT's field names (what
 // the plugin's writes address): PRESENCE, not value, is what marks an override,
 // exactly like the real document. It starts empty, so every field resolves from

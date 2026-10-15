@@ -12,7 +12,7 @@ import { mkdtemp, mkdir, rm, writeFile, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV, SnapshotStore } from '../src/snapshot.ts'
+import { DEFAULT_MAX_FILE_BYTES, SnapshotStore } from '../src/snapshot.ts'
 
 /** A cap small enough to cross with a few bytes of test content. */
 const CAP = 4096
@@ -49,18 +49,10 @@ describe('per-file size cap', () => {
     expect(new SnapshotStore(root, { maxFileBytes: 0 }).isOverFileCap(1 << 30)).toBe(false)
   })
 
-  it('resolves the cap from the option, the env override, then the default', () => {
+  it('resolves the cap from the option, then the default', () => {
     expect(new SnapshotStore(root).fileCapBytes).toBe(DEFAULT_MAX_FILE_BYTES)
-    process.env[MAX_FILE_BYTES_ENV] = String(CAP)
-    try {
-      expect(new SnapshotStore(root).fileCapBytes).toBe(CAP)
-      expect(new SnapshotStore(root, { maxFileBytes: 1 }).fileCapBytes).toBe(1)
-      // A typo must not silently disable the guard.
-      process.env[MAX_FILE_BYTES_ENV] = 'not-a-number'
-      expect(new SnapshotStore(root).fileCapBytes).toBe(DEFAULT_MAX_FILE_BYTES)
-    } finally {
-      delete process.env[MAX_FILE_BYTES_ENV]
-    }
+    expect(new SnapshotStore(root, { maxFileBytes: CAP }).fileCapBytes).toBe(CAP)
+    expect(new SnapshotStore(root, { maxFileBytes: 0 }).fileCapBytes).toBe(0)
   })
 
   it('refuses to write a pre-cap record over a file that has since grown past the cap', async () => {

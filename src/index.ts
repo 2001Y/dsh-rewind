@@ -1301,6 +1301,13 @@ export function apply(ctx: Context, config?: Config): void {
   ctx.on('session/event', (session: Session, event: SessionEvent) => {
     if (event.type !== 'user/message') return
     if (isSubagentSession(session)) return
+    // A rewind in flight must never start a pass that reads the tracked files:
+    // `executeRewind` appends its marker through `Session.append`, which
+    // dispatches this listener SYNCHRONOUSLY, so the marker's own pass would
+    // run while `restoreAfter` is writing those very files (mode `both`) and
+    // record a torn or pre-restore state. A pass skipped here is re-derived at
+    // the next real boundary, so deferring loses nothing.
+    if (inflight.has(session.id)) return
     void (async () => {
       try {
         if (lifecycle.signal.aborted) return

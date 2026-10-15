@@ -11,7 +11,7 @@
 > is not restated (the probes pin it; [Deliberate semantics](#deliberate-semantics-no-entry-kept)
 > names it). Upstream references use symbols and file names, never line numbers — they rot.
 >
-> Targeted version: npm `@deepseek-ai/*@0.2.1-alpha.3` (the last verified release).
+> Targeted version: npm `@deepseek-ai/*@0.2.1-alpha.4` (the last verified release).
 > Source reference: the upstream [github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness).
 > Version alignment: see `docs/release/release.md`.
 
@@ -30,10 +30,10 @@ The plugin targets one channel and reads the targeted version's shape only (no
 | Client settings card | entry form via `ctx.configForms.get(entryId)` (`plugins.bundle.config`) |
 | Client seat-button DOM | structural locate of the copy-`<button>` container (`actionsContainerOf`) |
 
-**Admission.** DSH admits a bundle only while every `@deepseek-ai/dsh-*` peer satisfies the
-runtime under `includePrerelease`, and re-checks every row the bundle's patch inserts. A bundle
-that silently disappears on a later line is a peer mismatch, not a load failure; this plugin's
-declarations satisfy the targeted version with no exemption.
+**Admission.** DSH reads `engines.dsh` alone when a manifest declares it, and the
+`@deepseek-ai/dsh-*` peers only when it does not (both under `includePrerelease`), re-checking
+every row the bundle's patch inserts. This plugin declares both, in sync, so the bound is the
+adapted line: a runtime outside it is refused at load rather than admitted into unadapted code.
 
 ## Definition of "fully compatible" (invariants)
 

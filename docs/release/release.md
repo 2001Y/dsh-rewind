@@ -68,13 +68,14 @@ Each release is `git push <branch>` followed by `git push <branch> --tags`.
 
 ## DSH version alignment
 
-`peerDependencies` declares the DSH range the plugin is adapted to. DSH admits a
-plugin when every `@deepseek-ai/dsh-*` peer satisfies the runtime under
-`includePrerelease` (see `docs/compat/audit.md`), which matches a wider range
-than npm's default rules. The declaration is updated when the range stops
-fitting: our own update drops compatibility with older releases, or upstream
-makes a minor or major change. Compatibility outside it is not maintained on
-purpose; `engines.dsh` declares the same range's floor.
+`engines.dsh` declares the DSH range the plugin is adapted to, and (since DSH
+0.2.1-alpha.4) is the sole admission criterion: when it is present, DSH reads no
+other range and admits the plugin only while it satisfies the runtime under
+`includePrerelease` (see `docs/compat/audit.md`). The `@deepseek-ai/dsh-*` peers
+mirror the same range — a host older than that release ignores `engines.dsh` and
+reads them instead. The range is updated when it stops fitting: our own update
+drops compatibility with older releases, or upstream makes a minor or major
+change. Compatibility outside it is not maintained on purpose.
 
 The declaration is not the verification record: that is the Targeted version in
 `docs/compat/audit.md`, moved each release by pointing the `@deepseek-ai/dsh-*`

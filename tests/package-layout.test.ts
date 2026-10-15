@@ -136,16 +136,23 @@ describe('package layout', () => {
     expect(pkg.engines?.node).toMatch(/\^22\.19\.0 \|\| >=24\.0\.0/)
   })
 
-  it('declares the DSH floor in the documented form, on the peer tuple', () => {
-    // release.md: only the `>=X.Y.Z[-pre]` form is used, and the floor moves in
-    // step with the peer tuple. Both sides are read from the manifest, so the
-    // assertion survives a DSH line change without an edit here.
-    const floor = pkg.engines?.dsh
-    expect(floor).toMatch(/^>=\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
+  it('declares the adapted DSH range on the peer tuple', () => {
+    // release.md: since DSH 0.2.1-alpha.4 `engines.dsh` is the sole admission
+    // criterion, so it declares the whole range — the floor on the peer tuple
+    // plus that tuple's next caret line as an exclusive bound. Both sides are
+    // read from the manifest, so the assertion survives a DSH line change
+    // without an edit here.
     const tuples = Object.entries(pkg.peerDependencies ?? {})
       .filter(([name]) => name.startsWith('@deepseek-ai/dsh-'))
-      .map(([, range]) => /\d+\.\d+\.\d+/.exec(range)?.[0])
+      .map(([, peerRange]) => /\d+\.\d+\.\d+/.exec(peerRange)?.[0])
     expect(new Set(tuples).size, 'every dsh peer must name one tuple').toBe(1)
-    expect(floor?.startsWith(`>=${tuples[0]}`)).toBe(true)
+    const tuple = tuples[0]
+    const [major, minor] = (tuple ?? '').split('.')
+    const ceiling = major === '0' ? `0.${Number(minor) + 1}.0-0` : `${Number(major) + 1}.0.0-0`
+    const declared = pkg.engines?.dsh
+    const parsed = /^>=(\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)? <(\d+\.\d+\.\d+-0)$/.exec(declared ?? '')
+    expect(parsed, `engines.dsh must bound the peer tuple, found ${String(declared)}`).not.toBeNull()
+    expect(parsed?.[1]).toBe(tuple)
+    expect(parsed?.[2]).toBe(ceiling)
   })
 })

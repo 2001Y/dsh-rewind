@@ -130,6 +130,9 @@ function mount(options: { fs?: boolean } = {}): Mounted {
           fs: fakeFs(),
           // Absolute file_paths here: the base value only has to exist.
           workingDirectory: { ensure: async () => root },
+          // The injected scope is a real Context: it carries `effect` for the
+          // registrations the plugin owns on it.
+          effect: (fn: unknown) => { collect(fn, disposers); return () => {} },
           on: (event: string, handler: (...args: never[]) => unknown) => { toolHandlers.set(event, handler); return () => {} },
         })
       }

@@ -1362,6 +1362,9 @@ export function apply(ctx: Context, config?: Config): void {
     // Expose the fs service to the command path (restore observation sync).
     // Undefined before the service mounts: the sync then degrades to a no-op.
     fsService = fs
+    // The scope disposes with either service: drop the captured reference so the
+    // command path can never hand a released instance to the observation sync.
+    scope.effect(() => () => { fsService = undefined }, 'dsh-rewind fs capture')
     scope.on('tools/execute', async (exec: ToolExecution, next): Promise<ToolExecutionResult> => {
       try {
         await captureBefore(fs, workingDirectory, store, exec, pending)

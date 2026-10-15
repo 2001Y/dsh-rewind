@@ -196,10 +196,12 @@ versions on disk.
   captured as a raw byte copy and the intent journal — references only —
   persisted atomically BEFORE the first fs mutation; each action is marked
   `done` as it is applied.
-- **Disk is truth**: after a restart, reconciliation compares the real disk
-  against each action's goal (the restore target for `running` journals, the
-  rescue state for `rollback-running` / `recovery-required` ones). A path
-  whose disk already matches is marked done without being touched.
+- **Disk is truth**: reconciliation compares the real disk against each action's
+  goal (the restore target for `running` journals, the rescue state for
+  `rollback-running` / `recovery-required` ones); a path whose disk already
+  matches is marked done without being touched. It is a store API an explicit
+  caller runs — the plugin never reconciles on its own, so an interrupted op
+  stays interrupted until then.
 - **Bounded storage**: `prune` keeps the newest 100 anchor groups per session
   (`MAX_ANCHOR_GROUPS`), materializing any surviving dedup link that references
   a group being dropped before deleting whole anchor directories; it also

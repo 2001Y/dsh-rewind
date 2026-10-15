@@ -99,12 +99,13 @@ hides the `[target, marker]` span from the rendered transcript.
   `[a-zA-Z0-9._-]` (`safeSessionId` / `safeFileId`) before joining the store
   root; `.` and `..` bare values are replaced — hostile ids cannot traverse
   out of the root.
-- **Never written through a link or a moved directory**: two checks guard a
-  tracked path before any write or unlink. (1) A path whose last component is a
-  symlink or a hard link (`lstat().nlink > 1`) is skipped and reported, never
-  restored — a symlink would redirect the write outside the checkpoint, and a
-  hard link would clobber every other name of the same inode (e.g.
-  pnpm-installed files). (2) Every record this build writes — entry, link and
+- **Links and moved directories are refused**: two checks guard a tracked path.
+  (1) Planning skips a path whose last component is a symlink or a hard link
+  (`lstat().nlink > 1`) and reports it, never restoring it — a symlink would
+  redirect the write outside the checkpoint, and a hard link would clobber every
+  other name of the same inode (e.g. pnpm-installed files); a link swapped in
+  after planning is not re-checked. (2) At apply time, every record this build
+  writes — entry, link and
   journal action — carries the `realpath` of the file's directory at commit time
   (the location pin; best-effort, and absent on released-v1 data or a commit
   whose parent could not be resolved), and a restore re-checks it before
@@ -146,11 +147,13 @@ hides the `[target, marker]` span from the rendered transcript.
   planned path's pre-restore ("rescue") state and persists an intent journal,
   then marks each action done as it is applied. A crash at any point leaves
   the journal on disk.
-- **Disk is truth**: after a restart, `reconcileRestores` re-derives from the
-  real disk which paths already match the goal (restored) and which are
-  pending; `continueRestore` finishes the interrupted op, `rollbackRestore`
-  undoes it to the exact pre-restore state. A journal whose goal is already
-  reached auto-heals to its terminal state.
+- **Disk is truth**: an interrupted op keeps its journal on disk, and the store's
+  recovery API re-derives the true state from the real disk — `reconcileRestores`
+  reports which paths already match the goal (restored) and which are pending,
+  `continueRestore` finishes the op, `rollbackRestore` undoes it to the exact
+  pre-restore state, and a journal whose goal is already reached auto-heals to
+  its terminal state. The plugin never runs them on its own: an interrupted op
+  stays interrupted until an explicit caller resumes or undoes it.
 - **Fail-loud vs fail-soft**: a corrupt **journal** is reported
   `recovery-required` — never silently dropped (dropping it would erase the
   interrupted restore's recovery record). Corrupt **checkpoint entries** are

@@ -38,7 +38,7 @@ first, ISO dates.
 ## Rules
 
 1. Chinese first, then English (`---` between the halves); every entry exists in both.
-2. The compatibility line quotes `engines.dsh` verbatim and declares no upper bound.
+2. The compatibility line quotes `engines.dsh` verbatim, upper bound included.
 3. Stage word after the range: `内测版`/`Internal alpha.` for `-alpha`, `公测版`/`Public
    beta.` for `-beta`, `候选版`/`Release candidate.` for `-rc`; a stable version omits it.
 4. A stable block that spans several intermediates opens with `本版汇总了自 \`vPrev\`

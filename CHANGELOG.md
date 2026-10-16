@@ -14,7 +14,53 @@ and the release steps are documented in
 
 > DSH `>=0.2.1-alpha.2 <0.3.0-0` supported
 
-**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.16.0-alpha.1...vNEXT
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.16.0-alpha.2...vNEXT
+
+## [0.16.0-alpha.2] - 2026-10-16
+
+> 适配 DSH `>=0.2.1-alpha.2 <0.3.0-0`（内测版）
+
+### 新增功能
+
+- **快照上限与自动清理节奏进了插件配置。** 新增 `maxFileBytes`（单文件备份上限，`0` 为不限）、`maxAnchorGroups`（每会话保留的锚点组数，校验 `>= 1`）、`autoSweepIntervalMs`（自动清理间隔，默认一天）三个字段，默认值不变；此前上限只能靠环境变量、锚点组数无法调整、清理节奏写死 24 小时。三项不出现在配置卡上，改配置文件后随插件重载生效。@SiriLee
+
+### 问题修复
+
+- **文件其实已还原时，回退不再因单个文件而报错。** 观察同步里只护住了 `resolve`，`fs.stat` 抛错会冒出 `executeRewind`，使一次「其实已还原」的回退报错并丢掉摘要；现在按文件尽力而为。@SiriLee
+- **热停用插件不再留下被隐藏的行。** 撤回行的隐藏是本插件对宿主行的改动，桥卸载后无人还原，会话要等页面刷新才恢复；现在卸载时统一还原，并改用可遍历的强引用集、每次刷新清理已脱离的行。@SiriLee
+- **回退期间不再做文件历史边界复检。** 标记写入是同步分发，复检会在 `both` 模式正写文件时读到半成品，记下撕裂或回退前的状态；现在有回退在飞就跳过该趟，真正的边界到来自会重新推导。@SiriLee
+- **检查点提交被拒时不再泄漏暂存副本。** 提交失败（存储由更新版本写入、或 IO 出错）会把暂存的字节副本留在磁盘且无人认领，此后该会话每次写入类调用都漏一份；现在失败即丢弃，报错照旧。@SiriLee
+- **provider 重载后不再握着已释放的 fs 实例。** 注入作用域销毁时清掉捕获的引用，避免之后的回退把已释放实例交给观察同步。@SiriLee
+
+### 其他变更
+
+- **两个环境变量退役（需要迁移）。** `DSH_REWIND_MAX_FILE_BYTES` 与 `DSH_REWIND_SNAPSHOT_DIR` 不再生效，请把值移到配置的 `maxFileBytes` / `snapshotDir`；存储根与上限从此只由配置决定，`$DSH_HOME` 仍经 `dshHome` 提供默认值。@SiriLee
+- **`engines.dsh` 与 peers 同界。** 声明补上上界，成为 `>=0.2.1-alpha.2 <0.3.0-0`；marketplace 与启动校验从此读同一个界。@SiriLee
+- **验证目标移到 DSH `0.2.1-alpha.4`。** 它落在已声明的范围内，因此兼容声明不变。@SiriLee
+
+---
+
+> DSH `>=0.2.1-alpha.2 <0.3.0-0` supported. Internal alpha.
+
+### New Features
+
+- **The snapshot bounds and the sweep cadence now come from plugin config.** Three fields land: `maxFileBytes` (per-file backup cap, `0` disables it), `maxAnchorGroups` (anchor groups kept per session, validated `>= 1`) and `autoSweepIntervalMs` (automatic-cleanup cadence, one day by default), all at their previous defaults; the cap used to need an env var, the group bound was not reachable at all, and the cadence was hardcoded to 24 h. None of the three appears on the configuration card, and a config edit takes effect when the plugin reloads. @SiriLee
+
+### Bug Fixes
+
+- **A rewind no longer fails over a single file when the files are in fact restored.** Only `resolve` was guarded in the observation sync, so a throwing `fs.stat` escaped `executeRewind` — a rewind whose files were already restored reported an error and dropped its summary. It is now best-effort per file. @SiriLee
+- **Unloading the plugin no longer leaves hidden rows behind.** Hiding withdrawn rows is this plugin's own mutation of host rows, and nothing reverted it once the bridge unmounted, so a live disable left the transcript truncated until a page reload; the unmount cleanup now restores them, tracking the elements in an iterable strong set and pruning detached rows on every refresh. @SiriLee
+- **No file-history boundary pass while a rewind is in flight.** The marker is appended through a synchronous dispatch, so the pass could read the files `both` mode was still writing and record a torn or pre-restore state; it now stands down for a session with a rewind in flight, and the next real boundary re-derives it. @SiriLee
+- **A refused checkpoint commit no longer leaks the staged copy.** A failed commit (a store written by a newer build, or an IO failure) left the staged bytes on disk with no owner, so every later write-class call in that session leaked one more copy; the capture is now discarded on failure, with the error still loud. @SiriLee
+- **A released fs instance is no longer held across a provider reload.** The captured reference is cleared when its injection scope disposes, so a later rewind cannot hand a released instance to the observation sync. @SiriLee
+
+### Chores
+
+- **Two environment variables are retired (a migration is needed).** `DSH_REWIND_MAX_FILE_BYTES` and `DSH_REWIND_SNAPSHOT_DIR` no longer apply — move their values into the `maxFileBytes` / `snapshotDir` config fields; the store root and the cap are now decided by config alone, with `$DSH_HOME` still feeding the default through `dshHome`. @SiriLee
+- **`engines.dsh` now shares the peers' bound.** The declaration gains an upper bound and reads `>=0.2.1-alpha.2 <0.3.0-0`, so the marketplace and the startup check read the same range. @SiriLee
+- **The verification target moves to DSH `0.2.1-alpha.4`.** It sits inside the declared range, so the compatibility declaration is unchanged. @SiriLee
+
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.16.0-alpha.1...v0.16.0-alpha.2
 
 ## [0.16.0-alpha.1] - 2026-10-09
 

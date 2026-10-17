@@ -8,11 +8,19 @@ and the release steps are documented in
 
 ## [Unreleased]
 
-> 适配 DSH `>=0.2.1-alpha.2 <0.3.0-0`
+> 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
+
+### 其他变更
+
+- **兼容下限抬到 DSH `0.2.1-rc.1`。** 声明不再覆盖 alpha 迭代版；alpha.4／alpha.5 会被启动校验拒绝。@SiriLee
 
 ---
 
-> DSH `>=0.2.1-alpha.2 <0.3.0-0` supported
+> DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+
+### Chores
+
+- **The compatibility floor rises to DSH `0.2.1-rc.1`.** The declaration no longer covers alphas; the startup check refuses alpha.4 / alpha.5. @SiriLee
 
 **Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.16.0-alpha.2...vNEXT
 

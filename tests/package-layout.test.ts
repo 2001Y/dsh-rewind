@@ -1,6 +1,5 @@
 /**
- * Publish-layout guard tests (mirrors the `dsh-turn-rewind` package-layout
- * discipline): the prebuilt tarball must stay portable and complete:
+ * Publish-layout guard tests: the prebuilt tarball must stay portable and complete:
  *
  *  - `files` carries every install-time artifact and no repository-only doc;
  *  - the host bundle `lib/index.js` is external-clean: it imports only
@@ -154,5 +153,18 @@ describe('package layout', () => {
     expect(parsed, `engines.dsh must bound the peer tuple, found ${String(declared)}`).not.toBeNull()
     expect(parsed?.[1]).toBe(tuple)
     expect(parsed?.[2]).toBe(ceiling)
+  })
+
+  it('verifies the cordis family at the version its peer floor names', () => {
+    // The host bundles these itself, so they bind like a dsh package does: one
+    // version on both sides, and the suite runs against exactly that version
+    // instead of a nearby older copy.
+    const peers: Record<string, string> = pkg.peerDependencies ?? {}
+    const devs: Record<string, string> = pkg.devDependencies ?? {}
+    for (const name of ['@deepseek-ai/cordis', '@deepseek-ai/schemastery']) {
+      const peer = peers[name]
+      expect(peer, `${name} must declare a peer floor`).toMatch(/^\^\d+\.\d+\.\d+$/u)
+      expect(devs[name], `${name} must be installed at that floor`).toBe(peer?.slice(1))
+    }
   })
 })

@@ -172,7 +172,6 @@ withdrew should consume the stable, locale-independent helpers exported from
 1. **Exported logs are complete** — a rewind only removes messages from the model context and the view; the exported session log (`/export`) still contains **withdrawn messages**. This plugin cannot alter exports.
 2. **Lightweight file rewind has a cost** — in specific cases not all changes can be rewound. Consistent with Claude Code. See: [File-rewind tracking boundary](docs/compat/tracking-boundary.md).
 3. **The turn-rail shows rewound turns** — the right-side rail added in DSH `v0.1.2` keeps ticks for withdrawn messages, and hovering shows the withdrawn text. Only a display difference; no functional impact.
-4. **Old rewind markers are no longer compatible** — DSH `v0.1.3` rejects the rewind markers from the old plugin (≤ 0.8.0). Later versions resolve this and provide an in-session update. See the [update guide](docs/rewind-fix.md).
 
 > [!NOTE]
 > Browser diagnostics are available; see [Browser diagnostics](docs/compat/diagnostics.md).

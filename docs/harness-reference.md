@@ -56,7 +56,7 @@ src/client/hidden.ts    withdrawn-span computation (hiddenSeqsOf), pure
 src/client/candidates.ts  rewind candidate listing (rewindCandidatesOf), pure
 src/client/pending.ts   pending-steering bubble ↔ inbox next-step (user-sourced) matching, pure
 src/client/portals.tsx  per-user-message ↶ button portals (React bridge into the actions row)
-src/client/settings-card.tsx  snapshot-cleanup form on the bundle page (plugins.bundle.config)
+src/client/settings-card.tsx  settings form on the bundle page (plugins.bundle.config)
 src/client/locales.ts   zh / en copy (LocaleNamespaceMap)
 src/client/styles.ts    injected styles (dsh design tokens)
 src/client/build-info.ts  client build identity (__DSH_REWIND_VERSION__ / __DSH_REWIND_BUILD__)

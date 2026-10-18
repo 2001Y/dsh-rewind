@@ -39,7 +39,7 @@ The auto-cleanup switch and the idle-day cutoff are this plugin entry's own
 configuration. View and edit them on the **Plugins** page, in this plugin's
 configuration card, or with the `/snapshot-auto-cleanup` command:
 
-<img src="../assets/screenshots/cleanup-setting.png" alt="Plugin configuration card: auto cleanup and idle time (days)" width="600">
+<img src="../assets/screenshots/plugin-setting.png" alt="Plugin configuration card: snapshot backups and auto cleanup" width="600">
 
 - `autoCleanupEnabled` — whether automatic cleanup runs (default `false`).
 - `autoCleanupMaxAgeDays` — how many idle days before a session's snapshots are removed (default `30`). Only positive integers are accepted, so a broken setting can never delete everything.

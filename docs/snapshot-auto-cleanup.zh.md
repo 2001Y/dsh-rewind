@@ -28,7 +28,7 @@
 
 自动清理开关与失活天数保存在**本插件条目自身的配置**中。可在**插件**页本插件的配置卡片查看与修改（自动清理开关、失活天数），也可用 `/snapshot-auto-cleanup` 命令查看和设置：
 
-<img src="../assets/screenshots/cleanup-setting.png" alt="插件配置卡片：自动清理与不活跃时间（天）" width="600">
+<img src="../assets/screenshots/plugin-setting.png" alt="插件配置卡片：快照备份与自动清理" width="600">
 
 - `autoCleanupEnabled` — 是否运行自动清理（默认 `false`）。
 - `autoCleanupMaxAgeDays` — 会话失活多少天后移除其快照（默认 `30`）。只接受正整数，因此一个损坏的设置永远不可能"删掉一切"。

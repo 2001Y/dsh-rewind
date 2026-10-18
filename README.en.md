@@ -72,11 +72,14 @@ then install the new one.
 
 ## Snapshot management
 
-Snapshots (the before-write backups) are stored under `<dsh home>/rewind-snapshots/`
+**Snapshot backups** are on by default: they power file restore and can be
+switched off in this plugin's configuration card. When off, no new snapshots
+are created; file changes made while off cannot be restored. Snapshots (the
+before-write backups) are stored under `<dsh home>/rewind-snapshots/`
 (the default is `~/.dsh/rewind-snapshots/`). For the **same session**, the plugin
 deduplicates snapshots by content and keeps the newest 100 anchor groups.
 **Deleting that directory manually** only clears the file backups (chat rewinds are
-unaffected) and the plugin rebuilds them automatically.
+unaffected); the plugin can rebuild them automatically.
 
 A **global auto-cleanup** (off by default) removes the snapshot directories of
 long-inactive sessions, leaving the active session and chat log untouched. Configure
@@ -85,7 +88,7 @@ auto-cleanup switch and the idle-day cutoff), or use the
 `/snapshot-auto-cleanup` command to **view, configure, and run** it. See:
 [Snapshot cleanup](docs/snapshot-auto-cleanup.md).
 
-<img src="assets/screenshots/cleanup-setting.png" alt="Plugin configuration card: auto cleanup and idle time (days)" width="600">
+<img src="assets/screenshots/plugin-setting.png" alt="Plugin configuration card: snapshot backups and auto cleanup" width="600">
 
 ## Uninstall
 
@@ -150,7 +153,7 @@ This plugin deliberately stays lightweight and focused on one thing — "convers
 ## Compatibility
 
 - Node.js `^22.19.0 || >=24.0.0`.
-- Compatibility definition, verification method, and version alignment: see [docs/compat/audit.md](docs/compat/audit.md); supported DSH versions are declared by `package.json` `peerDependencies`.
+- Compatibility definition, verification method, and version alignment: see [docs/compat/audit.md](docs/compat/audit.md); supported DSH versions are declared by `package.json` `engines.dsh`.
 
 > [!WARNING]
 > This project and DeepSeek Harness are both in developer preview. Pin exact

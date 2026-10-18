@@ -21,7 +21,7 @@ import type { AttachmentIdType } from '@deepseek-ai/dsh-attachment'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { CommandDecoration, CommandUiContract, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { ClientSessionContext } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
-// Type-only: the per-entry configuration form (`ctx.configForms`) the cleanup
+// Type-only: the per-entry configuration form (`ctx.configForms`) the settings
 // card stages over; the form model itself is the harness's own.
 import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the ctx.locale merge from the locale plugin.
@@ -45,11 +45,11 @@ import { BUILD_HASH, PLUGIN_PACKAGE, PLUGIN_VERSION } from './build-info.ts'
 import { en, zh } from './locales.ts'
 import { STYLE } from './styles.ts'
 import {
-  SettingsCleanupCard,
-  cleanupForm,
-  CLEANUP_ENTRY_ID,
-  type CleanupFormScope,
-  type CleanupPolicy,
+  SettingsCard,
+  settingsForm,
+  SETTINGS_ENTRY_ID,
+  type SettingsFormScope,
+  type SettingsPolicy,
 } from './settings-card.tsx'
 
 export const name = 'dsh-rewind'
@@ -329,26 +329,26 @@ export function apply(ctx: ClientContext): void {
       createRewindBridge({ sessionOf, chatOf, isMainViewSession, watchChat, setComposerText, restoreImages, t, subscribeLocale }),
     ))
 
-    // ---- snapshot-cleanup configuration form (sidebar Plugins page) ----
+    // ---- plugin configuration form (sidebar Plugins page) ----
     // The card is this bundle's own configuration page: it registers under
     // `plugins.bundle.config`, keyed by the BUNDLE's package name, and stages
     // its edits over the entry's shared configuration form (`ctx.configForms`),
     // exactly like the official settings pages.
     try {
-      const { store, form } = cleanupForm(
-        ctx.configForms.get<CleanupPolicy>(CLEANUP_ENTRY_ID) as unknown as CleanupFormScope<CleanupPolicy>,
+      const { store, form } = settingsForm(
+        ctx.configForms.get<SettingsPolicy>(SETTINGS_ENTRY_ID) as unknown as SettingsFormScope<SettingsPolicy>,
       )
       // The model subscribes to the entry's form on construction, so the fiber
       // must release it on unload (the official settings pages do the same).
-      ctx.effect(() => () => { form.dispose() }, 'dsh-rewind cleanup form')
+      ctx.effect(() => () => { form.dispose() }, 'dsh-rewind settings form')
       yield slots.inject('plugins.bundle.config', () => slots.register(
         {
           name: 'plugins.bundle.config',
           key: PLUGIN_PACKAGE,
           locale: NS,
-          inject: () => ({ hooks: { cleanupCard: store }, ...form.actions() }),
+          inject: () => ({ hooks: { settingsCard: store }, ...form.actions() }),
         },
-        SettingsCleanupCard,
+        SettingsCard,
       ))
     } catch (error) {
       // A settings-card failure must never break the plugin: the rewind

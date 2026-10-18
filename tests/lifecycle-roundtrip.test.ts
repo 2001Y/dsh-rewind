@@ -18,7 +18,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { en as enLocale, zh as zhLocale } from '../src/locales.ts'
-import { apply, cleanupConfigKey, ENGINE_COMMAND, inject } from '../src/index.ts'
+import { apply, profileEntryKey, ENGINE_COMMAND, inject } from '../src/index.ts'
 import { CURRENT_STORE_VERSION, SnapshotStore } from '../src/snapshot.ts'
 import { resolveCleanupStatePath } from '../src/snapshot-cleanup.ts'
 import { buildTurnedSession, testConfig, textMessage } from './helpers.ts'
@@ -370,9 +370,9 @@ describe('live disable → enable round trip', () => {
     // The loader mounts a bundle's rows under an `include:` scope, while the
     // settings service keys entries and profile patches by the bare row id; a
     // write addressed by the fiber id is refused at runtime.
-    expect(cleanupConfigKey('include:dsh-rewind-plugin')).toBe('dsh-rewind-plugin')
-    expect(cleanupConfigKey('dsh-rewind-plugin')).toBe('dsh-rewind-plugin')
-    expect(cleanupConfigKey(undefined)).toBeUndefined()
+    expect(profileEntryKey('include:dsh-rewind-plugin')).toBe('dsh-rewind-plugin')
+    expect(profileEntryKey('dsh-rewind-plugin')).toBe('dsh-rewind-plugin')
+    expect(profileEntryKey(undefined)).toBeUndefined()
   })
 
   it('writes the policy through the bare row id a real command resolves', async () => {

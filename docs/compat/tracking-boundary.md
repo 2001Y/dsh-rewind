@@ -55,7 +55,7 @@ Backups come from two sources:
   now differs from its **latest backup**, the current content is recorded as **that
   message's** backup. This is the only way an external edit gets backed up.
 
-### Two cases where no backup is produced
+### Several cases where no backup is produced
 
 - **Unchanged, not stored**: when the boundary re-check finds the disk identical to
   the latest backup, this re-check writes nothing; if a write-class tool edits that
@@ -65,6 +65,9 @@ Backups come from two sources:
   exceed the size cap (8 MiB by default, adjustable with the `maxFileBytes` plugin
   config, `0` disables it), the plugin **refuses the backup**; until that file is back
   under the cap, no new backup is written for it (the earlier backups remain).
+- **Snapshot backups turned off**: while off, neither the before-write capture nor the
+  message-boundary re-check records anything; after it is turned back on, the off
+  period is still a gap, so a rewind may be incomplete.
 
 ### Restore: backups are the only standard
 
@@ -134,11 +137,12 @@ from was `v0`, `v0` and `v1`; the plugin never saw them and cannot restore them.
 
 ### Limitation 2: a stretch of state that was not backed up — an incomplete restore
 
-Both "unchanged, not stored" and "over the cap, not stored" leave a stretch of state
-without a backup. When the target message has no backup of its own, the plugin looks
-toward later messages for the backup; as soon as an **unrecorded change** happened
-between the target and that backup, what it takes is no longer the state the target
-message began from. The three cases below stack one more scenario each.
+"Unchanged, not stored", "over the cap, not stored", and turning snapshot backups
+off all leave a stretch of state without a backup. When the target message has no
+backup of its own, the plugin looks toward later messages for the backup; as soon as
+an **unrecorded change** happened between the target and that backup, what it takes
+is no longer the state the target message began from. The cases below stack one more
+scenario each.
 
 **Case 1: the change does not belong to any message yet**
 
@@ -189,6 +193,19 @@ a **coverage gap**. Rewinding to msg 3 or 4 finds msg 5's `B`, so the plugin wri
 `B`; the "big" state they began from falls inside the gap and can never be restored.
 And if the file is currently over the cap, **no** target touches it: it prefers to do
 nothing rather than write back an older backup.
+
+**Case 4: backups were turned off and back on**
+
+| Msg | In the turn | File content | Backup |
+| :---: | --- | :---: | --- |
+| 1 | `write` creates it | `—` → `A` | `null` |
+| 2 | `edit` | `A` → `B` | (none: snapshot backups were off) |
+| 3 | `edit` | `B` → `C` | `B` (back on; a before-write backup) |
+
+Snapshot backups can be switched off in the plugin settings. Changes made while they
+are off are not in the record, so a rewind across that period may be incomplete. In
+the example, backups were turned off before msg 2 and back on before msg 3; msg 2 has
+no backup of its own, so rewinding to msg 2 finds msg 3's `B`.
 
 ## 4. Why these limitations are accepted
 

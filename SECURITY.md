@@ -26,10 +26,11 @@ re-verify the host's own authority boundaries.
 
 ## Mutation gates
 
-The plugin **automatically captures** before-backups of tracked mutations, but
-**never automatically applies** one. A workspace restore happens only through
-an explicit user-invoked `/rewind-plugin @<seq> both` (the per-message ↶ button or the
-command channel), and only when all of the following hold:
+When `fileCheckpointingEnabled` is on, the plugin **automatically captures**
+before-backups of tracked mutations, but **never automatically applies** one.
+A workspace restore happens only through an explicit user-invoked
+`/rewind-plugin @<seq> both` (the per-message ↶ button or the command channel),
+and only when all of the following hold:
 
 1. **A validated target**: `planRewind` accepts only a `user/message` seq that
    is currently on the session surface (`parseRewindTarget` → `RewindPlan`).

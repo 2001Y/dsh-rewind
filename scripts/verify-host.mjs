@@ -660,7 +660,85 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   check('edit is restored', editBoth.kind === 'success' && (await readFile(editPath, 'utf8')) === 'edit-before', `content=${await readFile(editPath, 'utf8')}`)
 }
 
-// 4i. a tracked file whose ancestor directory was replaced by a symlink is
+// 4i. the file-checkpointing switch: off records nothing and says so; a record
+//     made while it was on still restores after it is turned off; the
+//     message-boundary re-check is gated too.
+{
+  const offSession = buildSession('verify-checkpointing-off')
+  const offAgent = makeAgent(offSession.id, offSession)
+  offSession.append('user/message', user('off anchor question'), { surfaceOp: 'append' })
+  const offAnchor = offSession.snapshotEvents().findLast(event => event.type === 'user/message').seq
+  check('checkpointing is on by default', resolvedConfig.fileCheckpointingEnabled.get() === true, String(resolvedConfig.fileCheckpointingEnabled.get()))
+  updateVolatile(resolvedConfig.fileCheckpointingEnabled, createVolatile(false))
+  try {
+    await runWrite(offAgent, 'off1', join(wsDir, 'checkpointing-off.txt'), 'off-write')
+    const offDir = join(snapRoot, offSession.id)
+    const offMembers = await readdir(offDir).then(() => 'present', () => 'missing')
+    check('checkpointing off records nothing', offMembers === 'missing', offMembers)
+    const offPreview = await call(offAgent, `preview @${offAnchor} both`)
+    check('preview reports checkpointing off', offPreview.kind === 'success' && offPreview.text.includes('backup=off'), offPreview.text)
+    const offBoth = await call(offAgent, `@${offAnchor} both`)
+    check('both reports the incomplete restore', offBoth.kind === 'success' && /snapshot backups are off/i.test(offBoth.text), offBoth.text)
+  } finally {
+    updateVolatile(resolvedConfig.fileCheckpointingEnabled, createVolatile(true))
+  }
+
+  const keepSession = buildSession('verify-checkpointing-keep')
+  const keepAgent = makeAgent(keepSession.id, keepSession)
+  keepSession.append('user/message', user('keep anchor question'), { surfaceOp: 'append' })
+  const keepAnchor = keepSession.snapshotEvents().findLast(event => event.type === 'user/message').seq
+  const keepPath = join(wsDir, 'checkpointing-keep.txt')
+  await writeFile(keepPath, 'keep-before', 'utf8')
+  await runWrite(keepAgent, 'keep1', keepPath, 'keep-on-write')
+  updateVolatile(resolvedConfig.fileCheckpointingEnabled, createVolatile(false))
+  try {
+    await writeFile(keepPath, 'keep-off-write', 'utf8')
+    const keepPreview = await call(keepAgent, `preview @${keepAnchor} both`)
+    check('old checkpoint is still previewed while off', keepPreview.kind === 'success' && keepPreview.text.includes(`restore:${keepPath}`) && keepPreview.text.includes('backup=off'), keepPreview.text)
+    const keepBoth = await call(keepAgent, `@${keepAnchor} both`)
+    check('old checkpoint still restores while off', keepBoth.kind === 'success' && (await readFile(keepPath, 'utf8')) === 'keep-before', `content=${await readFile(keepPath, 'utf8')}`)
+  } finally {
+    updateVolatile(resolvedConfig.fileCheckpointingEnabled, createVolatile(true))
+  }
+
+  const boundarySession = buildSession('verify-checkpointing-boundary')
+  const boundaryAgent = makeAgent(boundarySession.id, boundarySession)
+  boundarySession.append('user/message', user('boundary anchor question'), { surfaceOp: 'append' })
+  const boundaryPath = join(wsDir, 'checkpointing-boundary.txt')
+  await writeFile(boundaryPath, 'boundary-before', 'utf8')
+  await runWrite(boundaryAgent, 'boundary1', boundaryPath, 'boundary-on-write')
+
+  // Off: an external change before the next message must not be re-checked.
+  updateVolatile(resolvedConfig.fileCheckpointingEnabled, createVolatile(false))
+  await writeFile(boundaryPath, 'boundary-off-write', 'utf8')
+  boundarySession.append('user/message', user('boundary off question'), { surfaceOp: 'append' })
+  const boundaryOffAnchor = boundarySession.snapshotEvents().findLast(event => event.type === 'user/message').seq
+  // A standalone Session has no agent loop to dispatch `session/event`; fire the
+  // same event the loop would, so this probes the plugin's listener.
+  await ctx.serial('session/event', boundarySession, { type: 'user/message', seq: boundaryOffAnchor })
+  await new Promise(resolve => setTimeout(resolve, 20))
+  const boundaryDir = join(snapRoot, boundarySession.id)
+  const offMembers = await readdir(boundaryDir).catch(() => [])
+  check('checkpointing off skips the message-boundary re-check', !offMembers.includes(String(boundaryOffAnchor)), `members=${offMembers.join(',')}`)
+
+  // On again: the next message re-checks the changed file and records it.
+  updateVolatile(resolvedConfig.fileCheckpointingEnabled, createVolatile(true))
+  boundarySession.append('user/message', user('boundary on question'), { surfaceOp: 'append' })
+  const boundaryOnAnchor = boundarySession.snapshotEvents().findLast(event => event.type === 'user/message').seq
+  await ctx.serial('session/event', boundarySession, { type: 'user/message', seq: boundaryOnAnchor })
+  const resumed = await (async () => {
+    const deadline = Date.now() + 2000
+    while (Date.now() < deadline) {
+      const members = await readdir(boundaryDir).catch(() => [])
+      if (members.includes(String(boundaryOnAnchor))) return true
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
+    return false
+  })()
+  check('re-enabling resumes the message-boundary re-check', resumed, `dir=${boundaryDir}`)
+}
+
+// 4j. a tracked file whose ancestor directory was replaced by a symlink is
 //     refused: only the path's FINAL component is link-checked, so without the
 //     checkpoint-time parent pin a restore would write — and a creation delete
 //     would UNLINK — through the link, outside the recorded location.
@@ -704,7 +782,7 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
     `${preview.text} | ${both.text}`)
 }
 
-// 4j. the pin must never cause a false skip for a STABLE symlinked ancestor (a
+// 4k. the pin must never cause a false skip for a STABLE symlinked ancestor (a
 //     symlinked workspace or temp root): the pin and the check are both
 //     realpaths, so they resolve identically.
 {
@@ -727,7 +805,7 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
     `${both.text} content=${restored}`)
 }
 
-// 4k. a service stat ERROR is not "the file does not exist": an abort, a
+// 4l. a service stat ERROR is not "the file does not exist": an abort, a
 //     permission/IO failure or a remote backend must abandon the capture, never
 //     record a creation — a creation record makes a later `both` rewind DELETE a
 //     file that exists (and that this plugin never backed up).

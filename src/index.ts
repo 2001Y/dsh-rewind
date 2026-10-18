@@ -8,8 +8,9 @@
  * target with itself, cutting only the model-visible surface
  * (`docs/architecture.md`).
  *
- * File restore (mode `both`) follows Claude Code's checkpointing: the plugin
- * backs up each tracked write-class edit BEFORE it happens (at the
+ * File restore (mode `both`) follows Claude Code's checkpointing: unless
+ * `fileCheckpointingEnabled` is off, the plugin backs up each tracked
+ * write-class edit BEFORE it happens (at the
  * `tools/execute` around-dispatch stage, so an approval short-circuit cannot
  * skip the capture and a denied call never records), commits the backup under
  * the turn's anchor message seq at `tools/post-execute`, and a rewind to
@@ -23,7 +24,7 @@
  * @module dsh-rewind
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
@@ -80,18 +81,24 @@ export interface RewindConfig {
   readonly autoSweepIntervalMs?: number
 }
 
+/** The default for {@link FileCheckpointingSettings.fileCheckpointingEnabled}. */
+export const DEFAULT_FILE_CHECKPOINTING_ENABLED = true
+
 /**
- * The plugin's full configuration: the ordinary store options plus the
- * user-editable cleanup policy. The two policy fields are `.volatile()`, so the
- * host resolves them into live references before `apply` and the Plugins page
- * exposes exactly them.
- *
- * The policy fields are named for WHAT they gate (the automatic sweep; the
- * `/snapshot-auto-cleanup` command's manual `run` ignores the switch), because
- * this entry's own `disabled:` flag sits beside them in the same document and a
- * bare `enabled` reads like the plugin switch.
+ * The live file-checkpointing switch (Claude Code's
+ * `fileCheckpointingEnabled`): whether NEW before-backups may be recorded.
  */
-export interface Config extends RewindConfig, CleanupSettings {}
+export interface FileCheckpointingSettings {
+  readonly fileCheckpointingEnabled: Volatile<boolean>
+}
+
+/**
+ * The plugin's full configuration: store options plus the three user-editable
+ * policy fields. `.volatile()` resolves them into live references for the
+ * Plugins page; the names say what they gate, because a bare `enabled` would
+ * read like the entry's own `disabled:` flag.
+ */
+export interface Config extends RewindConfig, CleanupSettings, FileCheckpointingSettings {}
 
 /** The `Config` schema the host resolves and projects as this entry's form. */
 export const Config = z.object({
@@ -101,9 +108,15 @@ export const Config = z.object({
   maxFileBytes: z.number().step(1).min(0).default(DEFAULT_MAX_FILE_BYTES),
   maxAnchorGroups: z.number().step(1).min(1).default(MAX_ANCHOR_GROUPS),
   autoSweepIntervalMs: z.number().step(1).min(1).default(AUTO_SWEEP_INTERVAL_MS),
+  fileCheckpointingEnabled: z.boolean().default(DEFAULT_FILE_CHECKPOINTING_ENABLED).volatile(),
   autoCleanupEnabled: z.boolean().default(DEFAULT_CLEANUP_CONFIG.enabled).volatile(),
   autoCleanupMaxAgeDays: z.number().step(1).min(1).default(DEFAULT_CLEANUP_CONFIG.maxAgeDays).volatile(),
 })
+
+/** Whether new before-backups may be recorded. Absent config keeps the default (on). */
+function isFileCheckpointingEnabled(config: Config | undefined): boolean {
+  return config?.fileCheckpointingEnabled?.get() !== false
+}
 
 /**
  * Tool names whose mutations the checkpoint tracker follows.
@@ -380,7 +393,8 @@ async function captureBefore(
 /**
  * Commit one tracked mutation during `tools/post-execute`: resolve the turn
  * anchor and MOVE the staged before-bytes into the checkpoint store. Failed
- * calls never commit (the staged capture is dropped).
+ * calls never commit (the staged capture is dropped); a capture staged before
+ * the checkpointing switch flipped off is dropped here too.
  */
 async function commitEntry(
   store: SnapshotStore,
@@ -389,11 +403,17 @@ async function commitEntry(
   trackedBySession: Map<string, Set<string>>,
   exec: ToolExecution,
   result: ToolExecutionResult,
+  checkpointingEnabled: boolean,
 ): Promise<void> {
   const key = `${exec.agent?.id ?? 'anon'}:${exec.callId}`
   const capture = pending.get(key)
   if (capture === undefined) return
   pending.delete(key)
+  // A flip between capture and commit drops the staged bytes.
+  if (!checkpointingEnabled) {
+    await discardCapture(capture)
+    return
+  }
   if (result.isError) {
     await discardCapture(capture)
     return
@@ -475,6 +495,7 @@ function formatBytes(bytes: number): string {
  *   `impact=<n>`        → number of files affected
  *   `restore:<path>`    → one file to restore
  *   `delete:<path>`     → one file to delete
+ *   `backup=off`        → new file checkpoints are disabled (restore may be incomplete)
  * The client MUST render from these tokens, never from the human copy.
  *
  * `uncovered` names recorded paths whose current size is over the backup cap:
@@ -486,6 +507,7 @@ function formatPlan(
   files: readonly { path: string; action: 'restore' | 'delete' }[],
   uncovered: readonly UncoveredPath[] = [],
   maxFileBytes = 0,
+  checkpointingEnabled = true,
 ): string {
   const lines = [
     t('plan.rewinding', { targetSeq: plan.targetSeq, count: plan.shadowedSeqs.length }),
@@ -504,13 +526,15 @@ function formatPlan(
     for (const file of uncovered.slice(0, 5)) lines.push(`  ${file.path}`)
     if (uncovered.length > 5) lines.push('  …')
   }
+  if (!checkpointingEnabled) lines.push(t('plan.backupOff'))
   // Machine-readable trailer (stable literal, locale-independent): the client
-  // parses `impact=<n>` and the restore:/delete: lines to render its own
-  // localized copy — never the human lines above.
+  // parses `impact=<n>`, the restore:/delete: lines, and `backup=off` to render
+  // its own localized copy — never the human lines above.
   lines.push(`impact=${files.length}`)
   for (const file of files) {
     lines.push(`${file.action}:${file.path}`)
   }
+  if (!checkpointingEnabled) lines.push('backup=off')
   return lines.join('\n')
 }
 
@@ -670,6 +694,7 @@ async function executeRewind(
   rawTarget: string,
   mode: RewindMode,
   inflight: InflightRewinds,
+  checkpointingEnabled: boolean,
 ): Promise<CommandResult> {
   const { agent } = invocation
   const sessionId = agent.session.id
@@ -766,6 +791,7 @@ async function executeRewind(
           const skippedLines = renderSkipped(outcome, capped, store.fileCapBytes)
           if (skippedLines !== '') parts.push(skippedLines)
         }
+        if (!checkpointingEnabled) parts.push(t('backupOff'))
         restore = parts.length > 0 ? `${t('sep.clause')}${parts.join(t('sep.list'))}` : t('noRestorable')
         restore += renderFailures(outcome.failed)
       }
@@ -804,6 +830,7 @@ async function handleRewind(
   fs: FileSystem | undefined,
   invocation: CommandInvocation,
   inflight: InflightRewinds,
+  checkpointingEnabled: boolean,
 ): Promise<CommandResult> {
   const session = invocation.agent.session
   const input = invocation.rawInput.trim()
@@ -820,7 +847,7 @@ async function handleRewind(
     if (candidates.length === 0) {
       return { kind: 'error', text: t('noUserMessages') }
     }
-    return executeRewind(ctx, store, fs, invocation, `@${candidates[0]!.seq}`, 'chat', inflight)
+    return executeRewind(ctx, store, fs, invocation, `@${candidates[0]!.seq}`, 'chat', inflight, checkpointingEnabled)
   }
 
   const parts = input.split(/\s+/)
@@ -845,7 +872,7 @@ async function handleRewind(
     }
     // Name the cap's coverage gap up front, alongside the impact list.
     const uncovered = await store.uncoveredPaths(session.id).catch(() => [] as UncoveredPath[])
-    return { kind: 'success', text: formatPlan(plan, impacts, uncovered, store.fileCapBytes) }
+    return { kind: 'success', text: formatPlan(plan, impacts, uncovered, store.fileCapBytes, checkpointingEnabled) }
   }
 
   // Internal machine channel: `__candidates` returns the FULL
@@ -865,7 +892,7 @@ async function handleRewind(
   // A target without a mode is the blocked human two-step flow; the engine
   // channel answers every human-shaped input the same way.
   if (mode === undefined) return { kind: 'error', text: t('engine.rejected') }
-  return executeRewind(ctx, store, fs, invocation, target, mode, inflight)
+  return executeRewind(ctx, store, fs, invocation, target, mode, inflight, checkpointingEnabled)
 }
 
 /** Whether THIS MOUNT already ran its one-shot auto-cleanup check. */
@@ -1106,7 +1133,7 @@ function rewindConfigKey(ctx: Context): string | undefined {
  * @param entryId - this fiber's Loader entry id, when it has one.
  * @returns the configuration key, or undefined without an entry.
  */
-export function cleanupConfigKey(entryId: string | undefined): string | undefined {
+export function profileEntryKey(entryId: string | undefined): string | undefined {
   if (entryId === undefined) return undefined
   return entryId.startsWith(INCLUDE_ENTRY_PREFIX) ? entryId.slice(INCLUDE_ENTRY_PREFIX.length) : entryId
 }
@@ -1132,7 +1159,8 @@ export function cleanupConfigKey(entryId: string | undefined): string | undefine
  *
  * @param ctx - context carrying `commands`, `tools`, and an optional `fs`.
  * @param config - resolved plugin config: the store options (`snapshotDir`,
- *  `dshHome`, `dedup`) plus the live cleanup policy (`enabled`, `maxAgeDays`).
+ *  `dshHome`, `dedup`) plus the live policy (`fileCheckpointingEnabled`, cleanup
+ *  `enabled`/`maxAgeDays`).
  */
 export function apply(ctx: Context, config?: Config): void {
   // Fresh per-mount host state: these live at module scope because module-level
@@ -1169,7 +1197,7 @@ export function apply(ctx: Context, config?: Config): void {
   // so the service is reachable as `ctx.settings`; without a resolved config or
   // a Loader entry there is nowhere to write, and the policy stays fail-closed
   // (reads report "unavailable", a sweep deletes nothing).
-  const configKey = cleanupConfigKey(rewindConfigKey(ctx))
+  const configKey = profileEntryKey(rewindConfigKey(ctx))
   if (config !== undefined && configKey !== undefined) {
     const writer: CleanupConfigWriter = {
       entryId: configKey,
@@ -1219,14 +1247,14 @@ export function apply(ctx: Context, config?: Config): void {
       }
     // One handler serves `/rewind` and its alias `/undo`.
     const rewindHandler = withHostLocale(
-      (invocation: CommandInvocation) => handleRewind(ctx, store, fsService, invocation, inflight),
+      (invocation: CommandInvocation) => handleRewind(ctx, store, fsService, invocation, inflight, isFileCheckpointingEnabled(config)),
     )
     // The engine channel is machine-driven: a human reaching it (menu pick or
     // typed line) is sent to the front doors instead of shown its grammar.
     const engineHandler = withHostLocale(
       (invocation: CommandInvocation) => invocation.rawInput.trim() === ''
         ? Promise.resolve<CommandResult>({ kind: 'error', text: t('engine.rejected') })
-        : handleRewind(ctx, store, fsService, invocation, inflight),
+        : handleRewind(ctx, store, fsService, invocation, inflight, isFileCheckpointingEnabled(config)),
     )
     // Each registration is isolated so a name another plugin owns costs only
     // that name (issue #49). Cordis rolls a failed effect back, so one
@@ -1277,6 +1305,7 @@ export function apply(ctx: Context, config?: Config): void {
   // Conservative per the "delete stale snapshots" policy: a legacy dir with no
   // recorded format marker is discarded too. Subagent sessions are skipped
   // (they are never rewind targets and record no snapshots).
+  // Not gated by the switch: this guard deletes incompatible snapshots, never creates them.
   ctx.on('agent/created', ({ agent }: { agent: Agent }) => {
     const session = agent.session
     if (isSubagentSession(session)) return
@@ -1342,6 +1371,8 @@ export function apply(ctx: Context, config?: Config): void {
         // Lazy auto-cleanup: a user message is the practical first trigger of a
         // day; it runs in the background and fail-closes on config error.
         void maybeRunAutoCleanup(ctx, store, sessionId, dshHome, config?.autoSweepIntervalMs, lifecycle.signal)
+        // Cleanup above stays independent; the switch stops NEW checkpoints only.
+        if (!isFileCheckpointingEnabled(config)) return
         let tracked = trackedBySession.get(sessionId)
         if (tracked === undefined) {
           tracked = await store.trackedPaths(sessionId)
@@ -1367,7 +1398,9 @@ export function apply(ctx: Context, config?: Config): void {
     scope.effect(() => () => { fsService = undefined }, 'dsh-rewind fs capture')
     scope.on('tools/execute', async (exec: ToolExecution, next): Promise<ToolExecutionResult> => {
       try {
-        await captureBefore(fs, workingDirectory, store, exec, pending)
+        if (isFileCheckpointingEnabled(config)) {
+          await captureBefore(fs, workingDirectory, store, exec, pending)
+        }
       } catch (error) {
         ctx.logger.warn(`[dsh-rewind] before-capture failed for ${exec.name}: ${error instanceof Error ? error.message : String(error)}`)
       }
@@ -1388,7 +1421,7 @@ export function apply(ctx: Context, config?: Config): void {
         if (session !== undefined && !isSubagentSession(session)) {
           void maybeRunAutoCleanup(ctx, store, session.id, dshHome, config?.autoSweepIntervalMs, lifecycle.signal)
         }
-        await commitEntry(store, pending, anchorCache, trackedBySession, exec, result)
+        await commitEntry(store, pending, anchorCache, trackedBySession, exec, result, isFileCheckpointingEnabled(config))
       } catch (error) {
         ctx.logger.warn(`[dsh-rewind] checkpoint commit failed for ${exec.name}: ${error instanceof Error ? error.message : String(error)}`)
       }

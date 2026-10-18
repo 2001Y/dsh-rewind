@@ -16,6 +16,7 @@ export const CLASS = {
   popoverOptionLabel: 'dsh-rewind-popover-option-label',
   popoverOptionHint: 'dsh-rewind-popover-option-hint',
   popoverImpact: 'dsh-rewind-popover-impact',
+  popoverNote: 'dsh-rewind-popover-note',
   popoverActions: 'dsh-rewind-popover-actions',
   popoverPrimary: 'dsh-rewind-popover-primary',
   popoverGhost: 'dsh-rewind-popover-ghost',
@@ -138,6 +139,12 @@ export const STYLE = `
   max-height: 160px;
   overflow: auto;
 }
+.dsh-rewind-popover-note {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--dsw-alias-label-tertiary);
+}
 .dsh-rewind-popover-actions {
   display: flex;
   justify-content: flex-end;
@@ -187,16 +194,17 @@ export const STYLE = `
   pointer-events: none;
 }
 
-/* ---- Snapshot-cleanup configuration form ---- */
-/* The Plugins page draws the bundle's title, icon, crumb, description, and the
-   shared settings form frame (labels, save, read-only and failure lines); this
-   styles only the one control the card owns: the auto-cleanup toggle row. */
-.dsh-rewind-cleanup-permission {
+/* ---- Plugin configuration form ---- */
+/* Only the card's own controls: the two switch rows, their hints, and the divider. */
+.dsh-rewind-settings-divider {
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+.dsh-rewind-settings-section {
   display: grid;
   gap: 6px;
   padding: 12px 0;
 }
-.dsh-rewind-cleanup-toggle-row {
+.dsh-rewind-settings-toggle-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -205,11 +213,11 @@ export const STYLE = `
   line-height: 1.5;
   color: var(--dsw-alias-label-primary);
 }
-.dsh-rewind-cleanup-toggle-label {
+.dsh-rewind-settings-toggle-label {
   flex: 1;
   min-width: 0;
 }
-.dsh-rewind-cleanup-hint {
+.dsh-rewind-settings-hint {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;

@@ -69,11 +69,11 @@ dsh plugin --profile <name> add dsh-rewind-plugin@<版本>
 
 ## 存储管理
 
-快照（写前备份）存储于 `<dsh home>/rewind-snapshots/`（默认 `~/.dsh/rewind-snapshots/`）。插件对**同一会话**的快照做内容去重并保留最近 100 组锚点；**手动删除该目录**仅清除文件备份（对话回退不受影响），插件会自动重建。
+**快照备份**（默认开启）：用于文件还原；可在本插件的配置卡片中关闭。关闭后不再创建新的快照，关闭期间的文件改动无法还原。快照存储于 `<dsh home>/rewind-snapshots/`（默认 `~/.dsh/rewind-snapshots/`）。手动删除该目录仅清除文件备份（对话回退不受影响），插件可自动重建。
 
-另提供**全局自动清理**（默认关闭）：把长期不活跃的会话快照整目录移除，不影响活动会话与对话日志。可在**插件**页本插件的配置卡片查看与配置（自动清理开关、失活天数），也可用 `/snapshot-auto-cleanup` 命令查看、设置和运行。详见：[快照自动清理](docs/snapshot-auto-cleanup.zh.md)。
+**全局自动清理**（默认关闭）：把长期不活跃的会话快照整目录移除，不影响活动会话与对话日志。可在配置卡片查看与配置（自动清理开关、失活天数），也可用 `/snapshot-auto-cleanup` 命令查看、设置和运行。详见：[快照自动清理](docs/snapshot-auto-cleanup.zh.md)。
 
-<img src="assets/screenshots/cleanup-setting.png" alt="插件配置卡片：自动清理与不活跃时间（天）" width="600">
+<img src="assets/screenshots/plugin-setting.png" alt="插件配置卡片：快照备份与自动清理" width="600">
 
 ## 卸载
 
@@ -137,7 +137,7 @@ rm <dsh home>/snapshot-cleanup-last-sweep.json
 ## 兼容性
 
 - Node.js `^22.19.0 || >=24.0.0`。
-- 兼容性定义、验证方法与版本对齐详见 [docs/compat/audit.md](docs/compat/audit.md)；支持的 DSH 版本由 `package.json` 的 `peerDependencies` 声明。
+- 兼容性定义、验证方法与版本对齐详见 [docs/compat/audit.md](docs/compat/audit.md)；支持的 DSH 版本由 `package.json` 的 `engines.dsh` 声明。
 
 > [!WARNING]
 > 本项目与 DeepSeek Harness 均处于开发者预览阶段。可复现环境请 pin 精确版本，

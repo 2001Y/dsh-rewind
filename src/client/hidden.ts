@@ -226,6 +226,11 @@ export function hasFileImpact(text: string | undefined): boolean {
   return false
 }
 
+/** Whether the preview reports that new file checkpoints are disabled. */
+export function hasBackupDisabled(text: string | undefined): boolean {
+  return text !== undefined && /(?:^|\n)backup=off(?:\n|$)/.test(text)
+}
+
 /** True when an engine command node is an impact preview — the internal probe
  * the popover runs (`preview @seq both`) to fetch the restore/delete
  * list. Previews never surface in the transcript (their result is shown in the

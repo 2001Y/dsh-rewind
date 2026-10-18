@@ -15,6 +15,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { HiddenChat } from '../src/client/hidden.ts'
 import { closePopover, openPopover, registerComposerFocuser, type PopoverOptions } from '../src/client/popover.ts'
 import { CLASS } from '../src/client/styles.ts'
 
@@ -30,21 +31,42 @@ function fakeSession(result: unknown): SessionFace {
 
 /** Translator stub: embeds params so the host-supplied reason stays readable. */
 const t = ((key: string, params?: Record<string, unknown>) =>
-  params === undefined ? key : `${key}:${String(params['message'])}`) as unknown as PopoverOptions['t']
+  params === undefined ? key : `${key}:${String(params['path'] ?? params['message'])}`) as unknown as PopoverOptions['t']
 
 /** Open the durable popover against `session` (no DOM rows needed). */
-function open(session: SessionFace): void {
+function open(session: SessionFace, chatOf: () => HiddenChat | undefined = () => undefined): void {
   openPopover({
     session,
     seq: 5,
     time: 0,
     preview: 'hello',
-    chatOf: () => undefined,
+    chatOf,
     watchChat: () => () => {},
     anchor: document.body,
     t,
     onRewind: () => {},
   })
+}
+
+/** A chat snapshot holding this popover's settled preview command. */
+function previewChat(text: string): HiddenChat {
+  return {
+    order: ['preview'],
+    nodes: new Map([['preview', {
+      key: 'preview',
+      kind: 'command',
+      anchorSeq: 6,
+      data: {
+        kind: 'command',
+        seq: 6,
+        time: 0,
+        commandId: 'cid',
+        name: 'rewind-plugin',
+        args: 'preview @5 both',
+        outcome: { kind: 'success', text },
+      },
+    }]]),
+  }
 }
 
 /** Flush the microtask chain of the background impact probe. */
@@ -94,6 +116,37 @@ describe('openPopover (a failed impact probe settles the modes step)', () => {
   it('keeps the pending entry disabled while the probe is still in flight', () => {
     open(fakeSession('pending'))
     expect(optionHints()).toContain('popover.checking')
+  })
+})
+
+describe('openPopover (the impact step reports checkpointing-off)', () => {
+  /** Open, settle a successful preview, then enter the both-mode impact step. */
+  async function impactText(previewText: string): Promise<string> {
+    let chat: HiddenChat | undefined
+    open(fakeSession({ ok: true, value: { matched: true } }), () => chat)
+    chat = previewChat(previewText)
+    await settle()
+    const both = [...document.querySelectorAll<HTMLButtonElement>('button')]
+      .find(button => button.textContent?.includes('popover.both'))
+    both?.click()
+    await settle()
+    return document.querySelector(`.${CLASS.popoverImpact}`)?.textContent ?? ''
+  }
+
+  it('appends the note when the host reports backup=off', async () => {
+    const impact = await impactText('Rewind to seq 5.\nimpact=1\nrestore:/a\nbackup=off')
+    expect(impact).toContain('popover.impact.restore:/a')
+    expect(impact).toContain('popover.backupDisabled')
+    const note = document.querySelector(`.${CLASS.popoverNote}`)
+    expect(note?.textContent).toBe('popover.backupDisabled')
+    expect(note?.closest(`.${CLASS.popoverImpact}`)).not.toBeNull()
+  })
+
+  it('omits the note when the host does not report it', async () => {
+    const impact = await impactText('Rewind to seq 5.\nimpact=1\nrestore:/a')
+    expect(impact).toContain('popover.impact.restore:/a')
+    expect(impact).not.toContain('popover.backupDisabled')
+    expect(document.querySelector(`.${CLASS.popoverNote}`)).toBeNull()
   })
 })
 

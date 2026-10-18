@@ -1,7 +1,7 @@
 /**
- * This bundle's configuration form for the snapshot-cleanup policy, rendered
- * on its Plugins-page card (`plugins.bundle.config`, keyed by the package
- * name).
+ * This bundle's configuration form for the file-checkpointing and snapshot
+ * cleanup switches, rendered on its Plugins-page card (`plugins.bundle.config`,
+ * keyed by the package name).
  *
  * The staging model, the field controls, and the form frame are the harness's
  * own (`SettingsFormModel` + `SettingsValueField` + `SettingsForm`); the one
@@ -38,13 +38,14 @@ export const CARD_LOCALE_NS = 'rewind'
  * The plugin entry whose form this is: the bundle's package name, which is the
  * profile entry id the host addresses the configuration by.
  */
-export const CLEANUP_ENTRY_ID = 'dsh-rewind-plugin'
+export const SETTINGS_ENTRY_ID = 'dsh-rewind-plugin'
 
 /** The default max age; an empty numeric draft means "use this". */
 export const DEFAULT_MAX_AGE_DAYS = 30
 
-/** The two editable knobs, exactly as the entry's configuration document names them. */
-export interface CleanupPolicy {
+/** The editable knobs, exactly as the entry's configuration document names them. */
+export interface SettingsPolicy {
+  readonly fileCheckpointingEnabled: boolean
   readonly autoCleanupEnabled: boolean
   readonly autoCleanupMaxAgeDays: number
 }
@@ -73,20 +74,34 @@ function autoCleanupEnabledField(): FieldSpec {
 }
 
 /**
- * One form snapshot as this card reads it: the shared form frame's own state
- * (`SettingsFormShell`) plus the two field drafts.
+ * The `fileCheckpointingEnabled` field: default on, so turning it back on
+ * clears the stored value and re-inherits the schema default.
+ * @returns the field's conversion spec.
  */
-export interface CleanupCardSnapshot extends SettingsFormShell {
+function fileCheckpointingEnabledField(): FieldSpec {
+  return {
+    field: 'fileCheckpointingEnabled',
+    format: value => String(value !== false),
+    parse: text => text === 'true' ? { kind: 'clear' } : { kind: 'set', value: false },
+  }
+}
+
+/**
+ * One form snapshot as this card reads it: the shared form frame's own state
+ * (`SettingsFormShell`) plus the three field drafts.
+ */
+export interface SettingsCardSnapshot extends SettingsFormShell {
+  readonly checkpointingEnabled: SettingsFieldState
   readonly enabled: SettingsFieldState
   readonly maxAgeDays: SettingsFieldState
 }
 
 /**
  * The bound snapshot store the slot renderer rebinds as the card's
- * `useCleanupCard` selector hook.
+ * `useSettingsCard` selector hook.
  */
-export interface SettingsCleanupStore {
-  getSnapshot(): CleanupCardSnapshot
+export interface SettingsCardStore {
+  getSnapshot(): SettingsCardSnapshot
   subscribe(listener: () => void): () => void
 }
 
@@ -95,7 +110,7 @@ export interface SettingsCleanupStore {
  * `SettingsFormScope` read/write face, declared structurally so the card never
  * couples to an internal declaration file's path.
  */
-export interface CleanupFormScope<T> {
+export interface SettingsFormScope<T> {
   getSnapshot(): {
     readonly status: 'loading' | 'ready' | 'unavailable'
     readonly value: T | undefined
@@ -119,16 +134,19 @@ export interface CleanupFormScope<T> {
  * runtime owner share (`view`), the locale `t` seat, and the injected face with
  * its `hooks` compartment rebound as a `use<Name>` selector hook.
  */
-export type SettingsCleanupCardProps =
+export type SettingsCardProps =
   PropsRuntime<'plugins.bundle.config'>
   & PropsLocale<typeof CARD_LOCALE_NS>
-  & InjectFace<SettingsCleanupFace>
+  & InjectFace<SettingsCardFace>
 
 /**
  * Every dictionary key this card reads: the switch row, the day field, and the
  * five labels the shared form frame renders.
  */
-export type CleanupLabelKey =
+export type SettingsLabelKey =
+  | 'backup.title'
+  | 'backup.on'
+  | 'backup.off'
   | 'cleanup.auto'
   | 'cleanup.auto.on'
   | 'cleanup.auto.off'
@@ -144,7 +162,7 @@ export type CleanupLabelKey =
   | 'cleanup.saving'
 
 /** The form frame's copy, read from this plugin's dictionary. */
-export function formLabels(t: (key: CleanupLabelKey) => string): SettingsFormLabels {
+export function formLabels(t: (key: SettingsLabelKey) => string): SettingsFormLabels {
   return {
     unavailable: t('cleanup.unavailable'),
     readOnly: t('cleanup.readonly'),
@@ -159,15 +177,17 @@ export function formLabels(t: (key: CleanupLabelKey) => string): SettingsFormLab
  * @param scope - the shared per-entry configuration form.
  * @returns the model plus the card's bound read hook.
  */
-export function cleanupForm(scope: CleanupFormScope<CleanupPolicy>) {
-  const form = new SettingsFormModel<CleanupPolicy>(scope, [
+export function settingsForm(scope: SettingsFormScope<SettingsPolicy>) {
+  const form = new SettingsFormModel<SettingsPolicy>(scope, [
+    fileCheckpointingEnabledField(),
     autoCleanupEnabledField(),
     settingsNumberField('autoCleanupMaxAgeDays'),
   ])
   return {
     form,
-    store: form.bind((): CleanupCardSnapshot => ({
+    store: form.bind((): SettingsCardSnapshot => ({
       ...form.shell(),
+      checkpointingEnabled: form.field('fileCheckpointingEnabled'),
       enabled: form.field('autoCleanupEnabled'),
       maxAgeDays: form.field('autoCleanupMaxAgeDays'),
     })),
@@ -180,14 +200,15 @@ export function cleanupForm(scope: CleanupFormScope<CleanupPolicy>) {
  * @param props - the view, the card's read hook, locale seat, and form actions.
  * @returns the form element, or null for the summary view.
  */
-export function SettingsCleanupCard(props: SettingsCleanupCardProps) {
-  const { t, useCleanupCard } = props
-  const state = useCleanupCard(snapshot => snapshot)
+export function SettingsCard(props: SettingsCardProps) {
+  const { t, useSettingsCard } = props
+  const state = useSettingsCard(snapshot => snapshot)
   if (props.view === 'summary') return null
   // The shared frame renders the unavailable and read-only lines itself, from
   // the state it is given; the card only supplies the controls.
   const disabled = !state.writable || state.saving
-  const enabled = state.enabled.text === 'true'
+  const checkpointing = state.checkpointingEnabled.text === 'true'
+  const cleanupEnabled = state.enabled.text === 'true'
   return (
     <SettingsForm
       labels={formLabels(t)}
@@ -195,19 +216,32 @@ export function SettingsCleanupCard(props: SettingsCleanupCardProps) {
       onSave={props.save}
       onDiscard={props.discard}
     >
-      <div className="dsh-rewind-cleanup-permission">
-        <div className="dsh-rewind-cleanup-toggle-row">
-          <span className="dsh-rewind-cleanup-toggle-label">{t('cleanup.auto')}</span>
+      <div className="dsh-rewind-settings-section">
+        <div className="dsh-rewind-settings-toggle-row">
+          <span className="dsh-rewind-settings-toggle-label">{t('backup.title')}</span>
           <Switch
-            checked={enabled}
+            checked={checkpointing}
+            label={t('backup.title')}
+            disabled={disabled}
+            onChange={(next) => { props.edit('fileCheckpointingEnabled', String(next)) }}
+          />
+        </div>
+        <p className="dsh-rewind-settings-hint">{t(checkpointing ? 'backup.on' : 'backup.off')}</p>
+      </div>
+      <div className="dsh-rewind-settings-divider" />
+      <div className="dsh-rewind-settings-section">
+        <div className="dsh-rewind-settings-toggle-row">
+          <span className="dsh-rewind-settings-toggle-label">{t('cleanup.auto')}</span>
+          <Switch
+            checked={cleanupEnabled}
             label={t('cleanup.auto')}
             disabled={disabled}
             onChange={(next) => { props.edit('autoCleanupEnabled', String(next)) }}
           />
         </div>
-        <p className="dsh-rewind-cleanup-hint">{t(enabled ? 'cleanup.auto.on' : 'cleanup.auto.off')}</p>
+        <p className="dsh-rewind-settings-hint">{t(cleanupEnabled ? 'cleanup.auto.on' : 'cleanup.auto.off')}</p>
       </div>
-      {enabled ? (
+      {cleanupEnabled ? (
         <SettingsValueField
           id="dsh-rewind-cleanup-maxage"
           label={t('cleanup.maxAge')}
@@ -228,7 +262,7 @@ export function SettingsCleanupCard(props: SettingsCleanupCardProps) {
 }
 
 /** The face the slot registration injects into the card. */
-export interface SettingsCleanupFace extends SettingsFormActions {
-  readonly hooks: { readonly cleanupCard: SettingsCleanupStore }
+export interface SettingsCardFace extends SettingsFormActions {
+  readonly hooks: { readonly settingsCard: SettingsCardStore }
 }
 

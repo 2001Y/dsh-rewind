@@ -10,19 +10,37 @@ and the release steps are documented in
 
 > 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
 
+---
+
+> DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.17.0...vNEXT
+
+## [0.17.0] - 2026-10-18
+
+> 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
+
 ### 新增功能
 
 - **可关闭文件快照备份。** 新增 `fileCheckpointingEnabled`（默认开启）。关闭后不再创建写前/边界快照，文件还原只覆盖已有记录；对话回退与自动清理不受影响。不需要文件回退的用户可借此减少存储占用与读写开销。(#53) @SiriLee
 
+### 其他变更
+
+- **验证目标移到 DSH `0.2.1-rc.2`。** 它落在已声明的范围内，因此兼容声明不变。@SiriLee
+
 ---
 
-> DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+> DSH `>=0.2.1-rc.1 <0.3.0-0` supported.
 
 ### New Features
 
 - **File snapshot backups can be turned off.** New `fileCheckpointingEnabled` (default on). When off, no new before-write/boundary snapshots are recorded; file restore covers existing records only. Conversation rewind and auto-cleanup are unaffected. Users who do not need file rewind can avoid the extra copies and read/write overhead. (#53) @SiriLee
 
-**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.16.0...vNEXT
+### Chores
+
+- **The verification target moves to DSH `0.2.1-rc.2`.** It sits inside the declared range, so the compatibility declaration is unchanged. @SiriLee
+
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.16.0...v0.17.0
 
 ## [0.16.0] - 2026-10-17
 

@@ -199,12 +199,12 @@ export const STYLE = `
 .dsh-rewind-settings-divider {
   border-top: 1px solid var(--dsw-alias-border-l2);
 }
-.dsh-rewind-cleanup-permission {
+.dsh-rewind-settings-section {
   display: grid;
   gap: 6px;
   padding: 12px 0;
 }
-.dsh-rewind-cleanup-toggle-row {
+.dsh-rewind-settings-toggle-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -213,11 +213,11 @@ export const STYLE = `
   line-height: 1.5;
   color: var(--dsw-alias-label-primary);
 }
-.dsh-rewind-cleanup-toggle-label {
+.dsh-rewind-settings-toggle-label {
   flex: 1;
   min-width: 0;
 }
-.dsh-rewind-cleanup-hint {
+.dsh-rewind-settings-hint {
   margin: 0;
   font-size: 12px;
   line-height: 1.5;

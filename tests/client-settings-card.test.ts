@@ -21,15 +21,15 @@ import { createRoot, type Root } from 'react-dom/client'
 ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 import { PLUGIN_PACKAGE } from '../src/client/build-info.ts'
 import {
-  CLEANUP_ENTRY_ID,
+  SETTINGS_ENTRY_ID,
   DEFAULT_MAX_AGE_DAYS,
-  SettingsCleanupCard,
-  cleanupForm,
+  SettingsCard,
+  settingsForm,
   formLabels,
-  type CleanupFormScope,
-  type CleanupPolicy,
-  type CleanupCardSnapshot,
-  type SettingsCleanupCardProps,
+  type SettingsFormScope,
+  type SettingsPolicy,
+  type SettingsCardSnapshot,
+  type SettingsCardProps,
 } from '../src/client/settings-card.tsx'
 
 const t = (key: string): string => key
@@ -49,7 +49,7 @@ type UserValue = boolean | number
  * the user layer untouched).
  */
 function fakeForm(options: {
-  readonly user?: Partial<Record<keyof CleanupPolicy, UserValue>>
+  readonly user?: Partial<Record<keyof SettingsPolicy, UserValue>>
   readonly status?: 'loading' | 'ready' | 'unavailable'
   readonly writable?: boolean
   readonly rejectPath?: string
@@ -58,7 +58,7 @@ function fakeForm(options: {
   const listeners = new Set<() => void>()
   const writes: Write[] = []
   const notify = () => { for (const cb of listeners) cb() }
-  const scope: CleanupFormScope<CleanupPolicy> = {
+  const scope: SettingsFormScope<SettingsPolicy> = {
     getSnapshot: () => ({
       status: options.status ?? 'ready',
       value: { ...BASE, ...user },
@@ -96,25 +96,25 @@ afterEach(() => { unmount() })
 /** Mount the card through its form bundle, exactly as the slot registration does. */
 function mount(options: Parameters<typeof fakeForm>[0] = {}, view: 'summary' | 'page' = 'page') {
   const { scope, writes } = fakeForm(options)
-  const { form, store } = cleanupForm(scope)
+  const { form, store } = settingsForm(scope)
   const el = document.createElement('div')
   document.body.appendChild(el)
   host = createRoot(el)
   // The slot renderer rebinds the injected `hooks` compartment as the card's
-  // `useCleanupCard` selector hook, so this stand-in renders exactly the
+  // `useSettingsCard` selector hook, so this stand-in renders exactly the
   // component props a real page binds.
-  const state = (): CleanupCardSnapshot => store.getSnapshot()
-  const useCleanupCard = <S,>(select: (snapshot: CleanupCardSnapshot) => S): S => select(state())
+  const state = (): SettingsCardSnapshot => store.getSnapshot()
+  const useSettingsCard = <S,>(select: (snapshot: SettingsCardSnapshot) => S): S => select(state())
   const render = () => {
     act(() => {
-      host!.render(createElement(SettingsCleanupCard, {
+      host!.render(createElement(SettingsCard, {
         view,
         t,
-        useCleanupCard,
+        useSettingsCard,
         ...form.actions(),
         // The renderer also seats the session standard props (the global kit),
         // which this card never reads; the probe binds only what it renders.
-      } as unknown as SettingsCleanupCardProps))
+      } as unknown as SettingsCardProps))
     })
   }
   const off = store.subscribe(render)
@@ -230,7 +230,7 @@ describe('field specs (what this card adds to the harness form model)', () => {
   })
 })
 
-describe('SettingsCleanupCard', () => {
+describe('SettingsCard', () => {
   it('renders nothing for the summary view the page only uses for one-liners', () => {
     const view = mount({}, 'summary')
     expect(view.root.textContent).toBe('')
@@ -286,9 +286,9 @@ describe('client constants and labels', () => {
     // Plugins page dispatches a bundle's form by.
     const root = join(dirname(fileURLToPath(import.meta.url)), '..')
     const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { name: string }
-    expect(CLEANUP_ENTRY_ID).toBe(pkg.name)
-    expect(CLEANUP_ENTRY_ID).toBe(PLUGIN_PACKAGE)
-    expect(CLEANUP_ENTRY_ID).toBe('dsh-rewind-plugin')
+    expect(SETTINGS_ENTRY_ID).toBe(pkg.name)
+    expect(SETTINGS_ENTRY_ID).toBe(PLUGIN_PACKAGE)
+    expect(SETTINGS_ENTRY_ID).toBe('dsh-rewind-plugin')
   })
 
   it('pins the placeholder default the host schema applies', () => {

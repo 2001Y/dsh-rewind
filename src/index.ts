@@ -115,7 +115,7 @@ export const Config = z.object({
 
 /** Whether new before-backups may be recorded. Absent config keeps the default (on). */
 function isFileCheckpointingEnabled(config: Config | undefined): boolean {
-  return config?.fileCheckpointingEnabled.get() !== false
+  return config?.fileCheckpointingEnabled?.get() !== false
 }
 
 /**
@@ -1133,7 +1133,7 @@ function rewindConfigKey(ctx: Context): string | undefined {
  * @param entryId - this fiber's Loader entry id, when it has one.
  * @returns the configuration key, or undefined without an entry.
  */
-export function cleanupConfigKey(entryId: string | undefined): string | undefined {
+export function profileEntryKey(entryId: string | undefined): string | undefined {
   if (entryId === undefined) return undefined
   return entryId.startsWith(INCLUDE_ENTRY_PREFIX) ? entryId.slice(INCLUDE_ENTRY_PREFIX.length) : entryId
 }
@@ -1197,7 +1197,7 @@ export function apply(ctx: Context, config?: Config): void {
   // so the service is reachable as `ctx.settings`; without a resolved config or
   // a Loader entry there is nowhere to write, and the policy stays fail-closed
   // (reads report "unavailable", a sweep deletes nothing).
-  const configKey = cleanupConfigKey(rewindConfigKey(ctx))
+  const configKey = profileEntryKey(rewindConfigKey(ctx))
   if (config !== undefined && configKey !== undefined) {
     const writer: CleanupConfigWriter = {
       entryId: configKey,

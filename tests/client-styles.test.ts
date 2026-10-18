@@ -16,11 +16,12 @@ import { describe, expect, it } from 'vitest'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** The prefix every class of this form carries. */
-const P = '.dsh-rewind-cleanup-'
+const P = '.dsh-rewind-settings-'
 
 /** One rule: the selector and its exact declarations (`prop:value`, `;`-separated). */
 const EXPECTATIONS: Readonly<Record<string, string>> = {
-  [`${P}permission`]: 'display:grid; gap:6px; padding:12px 0',
+  [`${P}divider`]: 'border-top:1px solid var(--dsw-alias-border-l2)',
+  [`${P}section`]: 'display:grid; gap:6px; padding:12px 0',
   [`${P}toggle-row`]: 'display:flex; align-items:flex-start; justify-content:space-between; gap:16px; font-size:13px; line-height:1.5; color:var(--dsw-alias-label-primary)',
   [`${P}toggle-label`]: 'flex:1; min-width:0',
   [`${P}hint`]: 'margin:0; font-size:12px; line-height:1.5; color:var(--dsw-alias-label-tertiary)',
@@ -111,7 +112,7 @@ describe('card styles (the block the card still owns)', () => {
   }
 
   it('adds no rule this block does not pin', () => {
-    // Every cleanup selector must be mapped above, so a new rule cannot slip in
+    // Every settings selector must be mapped above, so a new rule cannot slip in
     // unpinned (the assertion above already pins each mapped one's numbers).
     const unmapped = [...rules.keys()].filter(selector => selector.startsWith(P))
       .filter(selector => !Object.hasOwn(EXPECTATIONS, selector))

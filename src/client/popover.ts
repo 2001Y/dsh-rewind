@@ -350,8 +350,13 @@ function renderImpactStep(root: HTMLElement, opts: DurablePopoverOptions, back: 
           ...restores.map(path => t('popover.impact.restore', { path })),
           ...deletes.map(path => t('popover.impact.delete', { path })),
         ]
-        if (hasBackupDisabled(outcome.text)) lines.push(t('popover.backupDisabled'))
-        impact.textContent = lines.join('\n')
+        if (hasBackupDisabled(outcome.text)) {
+          const list = document.createElement('div')
+          list.textContent = lines.join('\n')
+          impact.replaceChildren(list, el('div', CLASS.popoverNote, t('popover.backupDisabled')))
+        } else {
+          impact.textContent = lines.join('\n')
+        }
       }
     }
     confirm.disabled = false

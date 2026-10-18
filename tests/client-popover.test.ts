@@ -137,12 +137,16 @@ describe('openPopover (the impact step reports checkpointing-off)', () => {
     const impact = await impactText('Rewind to seq 5.\nimpact=1\nrestore:/a\nbackup=off')
     expect(impact).toContain('popover.impact.restore:/a')
     expect(impact).toContain('popover.backupDisabled')
+    const note = document.querySelector(`.${CLASS.popoverNote}`)
+    expect(note?.textContent).toBe('popover.backupDisabled')
+    expect(note?.closest(`.${CLASS.popoverImpact}`)).not.toBeNull()
   })
 
   it('omits the note when the host does not report it', async () => {
     const impact = await impactText('Rewind to seq 5.\nimpact=1\nrestore:/a')
     expect(impact).toContain('popover.impact.restore:/a')
     expect(impact).not.toContain('popover.backupDisabled')
+    expect(document.querySelector(`.${CLASS.popoverNote}`)).toBeNull()
   })
 })
 

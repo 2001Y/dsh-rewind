@@ -16,6 +16,7 @@ export const CLASS = {
   popoverOptionLabel: 'dsh-rewind-popover-option-label',
   popoverOptionHint: 'dsh-rewind-popover-option-hint',
   popoverImpact: 'dsh-rewind-popover-impact',
+  popoverNote: 'dsh-rewind-popover-note',
   popoverActions: 'dsh-rewind-popover-actions',
   popoverPrimary: 'dsh-rewind-popover-primary',
   popoverGhost: 'dsh-rewind-popover-ghost',
@@ -137,6 +138,12 @@ export const STYLE = `
   white-space: pre-wrap;
   max-height: 160px;
   overflow: auto;
+}
+.dsh-rewind-popover-note {
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--dsw-alias-label-tertiary);
 }
 .dsh-rewind-popover-actions {
   display: flex;

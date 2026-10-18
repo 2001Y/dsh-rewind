@@ -42,7 +42,7 @@ machine channels (see [Compatibility strategy](#compatibility-strategy)).
     { op: 'replace', startSeq, endSeq } over every surface node after the
     target (+ sourceEventSeqs = shadowed seqs)          [a single event]
   → if mode 'both': store.restoreAfter(targetSeq) + syncRestoreObservations
-  → result text carries machine tokens (impact=<n>, restore:/delete: lines)
+  → result text carries machine tokens (impact=<n>, restore:/delete: lines, backup=off)
   → client: hides withdrawn rows (data-dsh-rewind-hidden), refills composer
     with the target message's text
 ```

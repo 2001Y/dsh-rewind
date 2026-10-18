@@ -1,12 +1,11 @@
 /**
  * @vitest-environment jsdom
  *
- * Unit tests for the client snapshot-cleanup configuration card
- * (src/client/settings-card.tsx). The staging model, the field controls, and
- * the form frame are the harness's own, so these probes pin what THIS card
- * owns: the two field specs, the labels map, the permission toggle's read of
- * the staged draft, and the write plan the shared model produces over a fake
- * entry form.
+ * Unit tests for the client configuration card (src/client/settings-card.tsx).
+ * The staging model, the field controls, and the form frame are the harness's
+ * own, so these probes pin what THIS card owns: the three field specs, the
+ * labels map, the two toggles' read of the staged draft, and the write plan the
+ * shared model produces over a fake entry form.
  *
  * Compilation: typechecked by `tsconfig.client-test.json` (client surface +
  * JSX); excluded from `tsconfig.json` (host, no JSX).
@@ -36,7 +35,7 @@ import {
 const t = (key: string): string => key
 
 /** The composition (base) layer the fake host resolves under the user layer. */
-const BASE = { autoCleanupEnabled: false, autoCleanupMaxAgeDays: 30 } as const
+const BASE = { fileCheckpointingEnabled: true, autoCleanupEnabled: false, autoCleanupMaxAgeDays: 30 } as const
 
 /** One recorded entry write. */
 type Write = { readonly op: 'set' | 'unset'; readonly path: readonly string[]; readonly value?: unknown }
@@ -125,7 +124,7 @@ function mount(options: Parameters<typeof fakeForm>[0] = {}, view: 'summary' | '
     writes,
     form,
     unmount: () => { off(); unmount() },
-    switch: () => el.querySelector<HTMLButtonElement>('[role="switch"]'),
+    switch: (label = 'cleanup.auto') => el.querySelector<HTMLButtonElement>(`[role="switch"][aria-label="${label}"]`),
     input: () => el.querySelector<HTMLInputElement>('input'),
     save: () => Array.from(el.querySelectorAll('button')).find(b => b.textContent === 'cleanup.save'),
     reset: () => Array.from(el.querySelectorAll('button')).find(b => b.textContent === 'cleanup.reset'),
@@ -161,6 +160,22 @@ describe('field specs (what this card adds to the harness form model)', () => {
     click(view.save())
     await vi.waitFor(() => { expect(view.writes).toHaveLength(1) })
     expect(view.writes).toEqual([{ op: 'set', path: ['autoCleanupEnabled'], value: true }])
+  })
+
+  it('stages file checkpointing off, then clears it back to the default', async () => {
+    const view = mount()
+    const backup = (): HTMLButtonElement | null => view.switch('backup.title')
+    expect(backup()?.getAttribute('aria-checked')).toBe('true')
+    click(backup())
+    expect(backup()?.getAttribute('aria-checked')).toBe('false')
+    expect(view.root.textContent).toContain('backup.off')
+    click(view.save())
+    await vi.waitFor(() => { expect(view.writes).toContainEqual({ op: 'set', path: ['fileCheckpointingEnabled'], value: false }) })
+
+    click(backup())
+    expect(view.root.textContent).toContain('backup.on')
+    click(view.save())
+    await vi.waitFor(() => { expect(view.writes).toContainEqual({ op: 'unset', path: ['fileCheckpointingEnabled'] }) })
   })
 
   it('blocks the whole save on an unparsable day count (the number field spec)', async () => {
@@ -239,9 +254,17 @@ describe('SettingsCleanupCard', () => {
     expect(on.input()).not.toBeNull()
   })
 
+  it('keeps the cleanup controls independent of the checkpointing switch', () => {
+    const view = mount({ user: { autoCleanupEnabled: true, autoCleanupMaxAgeDays: 7 } })
+    click(view.switch('backup.title'))
+    expect(view.input()?.value).toBe('7')
+    expect(view.switch('cleanup.auto')?.getAttribute('aria-checked')).toBe('true')
+  })
+
   it('disables every control on a read-only document', () => {
     const view = mount({ writable: false, user: { autoCleanupEnabled: true } })
     expect(view.switch()?.disabled).toBe(true)
+    expect(view.switch('backup.title')?.disabled).toBe(true)
     expect(view.input()?.disabled).toBe(true)
     expect(view.root.textContent).toContain('cleanup.readonly')
   })

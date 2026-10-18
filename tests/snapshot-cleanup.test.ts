@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createVolatile, updateVolatile } from '@deepseek-ai/cosmokit'
 import { DEFAULT_MAX_FILE_BYTES, MAX_ANCHOR_GROUPS, SnapshotStore } from '../src/snapshot.ts'
-import { Config } from '../src/index.ts'
+import { DEFAULT_FILE_CHECKPOINTING_ENABLED, Config } from '../src/index.ts'
 import {
   AUTO_SWEEP_INTERVAL_MS,
   DEFAULT_CLEANUP_CONFIG,
@@ -329,7 +329,7 @@ describe('Config schema + volatileCleanupStore', () => {
     }
   }
 
-  it('the Config schema declares both policy fields as live with the shared defaults', () => {
+  it('the Config schema declares both cleanup fields as live with the shared defaults', () => {
     const resolved = Config({} as never) as {
       autoCleanupEnabled: { get(): unknown }
       autoCleanupMaxAgeDays: { get(): unknown }
@@ -337,6 +337,13 @@ describe('Config schema + volatileCleanupStore', () => {
     expect(resolved.autoCleanupEnabled.get()).toBe(DEFAULT_CLEANUP_CONFIG.enabled)
     expect(resolved.autoCleanupMaxAgeDays.get()).toBe(DEFAULT_CLEANUP_CONFIG.maxAgeDays)
     expect(DEFAULT_MAX_AGE_DAYS).toBe(DEFAULT_CLEANUP_CONFIG.maxAgeDays)
+  })
+
+  it('the Config schema declares the file-checkpointing switch live and on by default', () => {
+    const resolved = Config({} as never) as { fileCheckpointingEnabled: { get(): unknown } }
+    expect(resolved.fileCheckpointingEnabled.get()).toBe(DEFAULT_FILE_CHECKPOINTING_ENABLED)
+    expect(DEFAULT_FILE_CHECKPOINTING_ENABLED).toBe(true)
+    expect(() => Config({ fileCheckpointingEnabled: 'yes' } as never)).toThrow()
   })
 
   it('the Config schema rejects a non-positive or non-integer autoCleanupMaxAgeDays', () => {

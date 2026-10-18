@@ -18,7 +18,7 @@ import {
 } from '@deepseek-ai/dsh-compaction'
 import { planRewind, REWIND_MARKER_SOURCE } from '../src/rewind.ts'
 import type { CleanupSettings } from '../src/snapshot-cleanup.ts'
-import type { RewindConfig } from '../src/index.ts'
+import type { FileCheckpointingSettings, RewindConfig } from '../src/index.ts'
 import { Context } from '@deepseek-ai/cordis'
 import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection'
 import { TokenMeter } from '@deepseek-ai/dsh-token-meter'
@@ -54,23 +54,24 @@ export function rewindMarker(): UserMessage {
 
 /**
  * One resolved plugin config for a test mount, shaped like the host's own:
- * the ordinary store options plus the two live cleanup references. The
- * defaults mirror the `Config` schema (`tests/snapshot-cleanup.test.ts` pins
- * that parity).
- * @param overrides - store options and cleanup values to override.
+ * the store options plus the live policy references. Defaults mirror the
+ * `Config` schema (`tests/snapshot-cleanup.test.ts` pins the cleanup parity).
+ * @param overrides - store options and policy values to override.
  * @returns the config object `apply` consumes.
  */
 export function testConfig(overrides: {
   readonly snapshotDir?: string
   readonly dshHome?: string
   readonly dedup?: boolean
+  readonly fileCheckpointingEnabled?: boolean
   readonly autoCleanupEnabled?: boolean
   readonly autoCleanupMaxAgeDays?: number
-} = {}): RewindConfig & CleanupSettings {
+} = {}): RewindConfig & FileCheckpointingSettings & CleanupSettings {
   return {
     snapshotDir: overrides.snapshotDir,
     dshHome: overrides.dshHome,
     dedup: overrides.dedup,
+    fileCheckpointingEnabled: createVolatile(overrides.fileCheckpointingEnabled ?? true),
     autoCleanupEnabled: createVolatile(overrides.autoCleanupEnabled ?? false),
     autoCleanupMaxAgeDays: createVolatile(overrides.autoCleanupMaxAgeDays ?? 30),
   }

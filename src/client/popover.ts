@@ -16,7 +16,7 @@
 
 import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { ENGINE_COMMAND, ENGINE_COMMANDS, hasFileImpact, type ChatOf, type ChatWatch, type HiddenChat } from './hidden.ts'
+import { ENGINE_COMMAND, ENGINE_COMMANDS, hasBackupDisabled, hasFileImpact, type ChatOf, type ChatWatch, type HiddenChat } from './hidden.ts'
 import { rewindLog } from './log.ts'
 import type { RewindKey } from './locales.ts'
 import { CLASS } from './styles.ts'
@@ -350,6 +350,7 @@ function renderImpactStep(root: HTMLElement, opts: DurablePopoverOptions, back: 
           ...restores.map(path => t('popover.impact.restore', { path })),
           ...deletes.map(path => t('popover.impact.delete', { path })),
         ]
+        if (hasBackupDisabled(outcome.text)) lines.push(t('popover.backupDisabled'))
         impact.textContent = lines.join('\n')
       }
     }

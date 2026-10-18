@@ -1,7 +1,7 @@
 /**
- * This bundle's configuration form for the snapshot-cleanup policy, rendered
- * on its Plugins-page card (`plugins.bundle.config`, keyed by the package
- * name).
+ * This bundle's configuration form for the file-checkpointing and snapshot
+ * cleanup switches, rendered on its Plugins-page card (`plugins.bundle.config`,
+ * keyed by the package name).
  *
  * The staging model, the field controls, and the form frame are the harness's
  * own (`SettingsFormModel` + `SettingsValueField` + `SettingsForm`); the one
@@ -43,8 +43,9 @@ export const CLEANUP_ENTRY_ID = 'dsh-rewind-plugin'
 /** The default max age; an empty numeric draft means "use this". */
 export const DEFAULT_MAX_AGE_DAYS = 30
 
-/** The two editable knobs, exactly as the entry's configuration document names them. */
+/** The editable knobs, exactly as the entry's configuration document names them. */
 export interface CleanupPolicy {
+  readonly fileCheckpointingEnabled: boolean
   readonly autoCleanupEnabled: boolean
   readonly autoCleanupMaxAgeDays: number
 }
@@ -73,10 +74,24 @@ function autoCleanupEnabledField(): FieldSpec {
 }
 
 /**
+ * The `fileCheckpointingEnabled` field: default on, so turning it back on
+ * clears the stored value and re-inherits the schema default.
+ * @returns the field's conversion spec.
+ */
+function fileCheckpointingEnabledField(): FieldSpec {
+  return {
+    field: 'fileCheckpointingEnabled',
+    format: value => String(value !== false),
+    parse: text => text === 'true' ? { kind: 'clear' } : { kind: 'set', value: false },
+  }
+}
+
+/**
  * One form snapshot as this card reads it: the shared form frame's own state
- * (`SettingsFormShell`) plus the two field drafts.
+ * (`SettingsFormShell`) plus the three field drafts.
  */
 export interface CleanupCardSnapshot extends SettingsFormShell {
+  readonly checkpointingEnabled: SettingsFieldState
   readonly enabled: SettingsFieldState
   readonly maxAgeDays: SettingsFieldState
 }
@@ -129,6 +144,9 @@ export type SettingsCleanupCardProps =
  * five labels the shared form frame renders.
  */
 export type CleanupLabelKey =
+  | 'backup.title'
+  | 'backup.on'
+  | 'backup.off'
   | 'cleanup.auto'
   | 'cleanup.auto.on'
   | 'cleanup.auto.off'
@@ -161,6 +179,7 @@ export function formLabels(t: (key: CleanupLabelKey) => string): SettingsFormLab
  */
 export function cleanupForm(scope: CleanupFormScope<CleanupPolicy>) {
   const form = new SettingsFormModel<CleanupPolicy>(scope, [
+    fileCheckpointingEnabledField(),
     autoCleanupEnabledField(),
     settingsNumberField('autoCleanupMaxAgeDays'),
   ])
@@ -168,6 +187,7 @@ export function cleanupForm(scope: CleanupFormScope<CleanupPolicy>) {
     form,
     store: form.bind((): CleanupCardSnapshot => ({
       ...form.shell(),
+      checkpointingEnabled: form.field('fileCheckpointingEnabled'),
       enabled: form.field('autoCleanupEnabled'),
       maxAgeDays: form.field('autoCleanupMaxAgeDays'),
     })),
@@ -187,7 +207,8 @@ export function SettingsCleanupCard(props: SettingsCleanupCardProps) {
   // The shared frame renders the unavailable and read-only lines itself, from
   // the state it is given; the card only supplies the controls.
   const disabled = !state.writable || state.saving
-  const enabled = state.enabled.text === 'true'
+  const checkpointing = state.checkpointingEnabled.text === 'true'
+  const cleanupEnabled = state.enabled.text === 'true'
   return (
     <SettingsForm
       labels={formLabels(t)}
@@ -197,17 +218,30 @@ export function SettingsCleanupCard(props: SettingsCleanupCardProps) {
     >
       <div className="dsh-rewind-cleanup-permission">
         <div className="dsh-rewind-cleanup-toggle-row">
+          <span className="dsh-rewind-cleanup-toggle-label">{t('backup.title')}</span>
+          <Switch
+            checked={checkpointing}
+            label={t('backup.title')}
+            disabled={disabled}
+            onChange={(next) => { props.edit('fileCheckpointingEnabled', String(next)) }}
+          />
+        </div>
+        <p className="dsh-rewind-cleanup-hint">{t(checkpointing ? 'backup.on' : 'backup.off')}</p>
+      </div>
+      <div className="dsh-rewind-settings-divider" />
+      <div className="dsh-rewind-cleanup-permission">
+        <div className="dsh-rewind-cleanup-toggle-row">
           <span className="dsh-rewind-cleanup-toggle-label">{t('cleanup.auto')}</span>
           <Switch
-            checked={enabled}
+            checked={cleanupEnabled}
             label={t('cleanup.auto')}
             disabled={disabled}
             onChange={(next) => { props.edit('autoCleanupEnabled', String(next)) }}
           />
         </div>
-        <p className="dsh-rewind-cleanup-hint">{t(enabled ? 'cleanup.auto.on' : 'cleanup.auto.off')}</p>
+        <p className="dsh-rewind-cleanup-hint">{t(cleanupEnabled ? 'cleanup.auto.on' : 'cleanup.auto.off')}</p>
       </div>
-      {enabled ? (
+      {cleanupEnabled ? (
         <SettingsValueField
           id="dsh-rewind-cleanup-maxage"
           label={t('cleanup.maxAge')}

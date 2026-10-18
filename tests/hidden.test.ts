@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { hasFileImpact, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, targetSeqOfArgs, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
+import { hasBackupDisabled, hasFileImpact, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, targetSeqOfArgs, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
 
 /** A chat view node for one row; only fields the hiding logic reads are real. */
 function viewNode(key: string, kind: string, anchorSeq: number, data: unknown = null, location?: unknown): ChatConversationViewNode {
@@ -292,6 +292,15 @@ describe('hasFileImpact (code-restore option availability)', () => {
   it('degrades to always-show for unknown outcomes', () => {
     expect(hasFileImpact(undefined)).toBe(true)
     expect(hasFileImpact('')).toBe(false) // empty text: no changes reported
+  })
+})
+
+describe('hasBackupDisabled (checkpointing-off note)', () => {
+  it('reads the machine trailer as a whole line', () => {
+    expect(hasBackupDisabled('Rewind to seq 5.\nimpact=1\nrestore:/a\nbackup=off')).toBe(true)
+    expect(hasBackupDisabled('backup=off')).toBe(true)
+    expect(hasBackupDisabled('note: backup=offline now')).toBe(false)
+    expect(hasBackupDisabled(undefined)).toBe(false)
   })
 })
 

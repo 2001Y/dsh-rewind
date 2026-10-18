@@ -187,10 +187,11 @@ export const STYLE = `
   pointer-events: none;
 }
 
-/* ---- Snapshot-cleanup configuration form ---- */
-/* The Plugins page draws the bundle's title, icon, crumb, description, and the
-   shared settings form frame (labels, save, read-only and failure lines); this
-   styles only the one control the card owns: the auto-cleanup toggle row. */
+/* ---- Plugin configuration form ---- */
+/* Only the card's own controls: the two switch rows, their hints, and the divider. */
+.dsh-rewind-settings-divider {
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
 .dsh-rewind-cleanup-permission {
   display: grid;
   gap: 6px;

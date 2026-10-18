@@ -51,10 +51,10 @@ function parseRules(css: string): Map<string, Record<string, string>> {
 }
 
 /** The cleanup block of the injected stylesheet (the STYLE template literal). */
-function cleanupRules(): Map<string, Record<string, string>> {
+function cardRules(): Map<string, Record<string, string>> {
   const source = readFileSync(join(root, 'src/client/styles.ts'), 'utf8')
-  const start = source.indexOf('/* ---- Snapshot-cleanup configuration form')
-  expect(start, 'the cleanup block marker moved').toBeGreaterThan(0)
+  const start = source.indexOf('/* ---- Plugin configuration form')
+  expect(start, 'the card style block marker moved').toBeGreaterThan(0)
   const end = source.indexOf('`', start)
   expect(end, 'the STYLE template literal is unterminated').toBeGreaterThan(start)
   return parseRules(source.slice(start, end))
@@ -94,8 +94,8 @@ describe('action button geometry', () => {
   })
 })
 
-describe('cleanup card styles (the block the card still owns)', () => {
-  const rules = cleanupRules()
+describe('card styles (the block the card still owns)', () => {
+  const rules = cardRules()
 
   for (const [selector, declarations] of Object.entries(EXPECTATIONS)) {
     it(`${selector} keeps its pinned declarations`, () => {

@@ -396,6 +396,21 @@ const USER_SEAT_SELECTOR = '[data-chat-flow-kind="user"][data-chat-anchor-key], 
 const CHAT_SEAT_SELECTOR = '[data-chat-anchor-key]'
 
 /**
+ * Subtrees whose mutations cannot change this bridge's target set in the
+ * targeted DSH line: the composer, the right-hand sidebar, and the host's
+ * plugin page. The chat snapshot subscription is the authoritative trigger,
+ * so ignoring these costs no update — it only stops every keystroke and the
+ * ignored panels' animations from scheduling a whole-transcript scan.
+ */
+const IGNORED_PORTAL_SCOPE = [
+  '[data-composer-seat]',
+  '[data-composer-input]',
+  '[data-sidebar-right-panel]',
+  '[data-sidebar-chat]',
+  '[data-plugin-panel]',
+].join(', ')
+
+/**
  * A step/process GROUP shell. It wraps its member rows and carries the
  * composite `group:<json>` anchor, which resolves to no chat node — the group
  * is a view construct, not a message — so it has to be judged by its members.
@@ -756,13 +771,14 @@ interface RewindPortalsProps extends RewindBridgeDeps {
 /**
  * Session-scoped portal bridge: renders the ↶ button of every user message
  * row of the session the harness mounts it for. The refresh is coalesced
- * (one pass per mutation batch via queueMicrotask) and diffed (setState is
+ * (one pass per microtask window via queueMicrotask) and diffed (setState is
  * skipped when the target set is unchanged), so the plugin never runs a
  * synchronous full-transcript scan inside a commit microtask.
  *
- * The scan is driven by both channels its targets are made of: the DOM (rows and
- * their actions containers) and the session's `inbox` projection (the pending
- * occurrences — see `syncInboxSubscription`).
+ * The refresh is driven by the three inputs its targets are made of: the chat
+ * snapshot (`hiddenSeqsOf`), the session's `inbox` projection (the pending
+ * occurrences — see `syncInboxSubscription`), and the DOM (row/actions mounts,
+ * via the scoped observer).
  */
 export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession, watchChat, t, subscribeLocale, setComposerText, restoreImages }: RewindPortalsProps): ReactNode {
   const [targets, setTargets] = useState<readonly PortalTarget[]>([])
@@ -817,23 +833,29 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
       // the rows React has already discarded first, so it stays bounded to the
       // live transcript.
       for (const element of hidden.current) if (!element.isConnected) hidden.current.delete(element)
-      hideWithdrawnSeats(
-        chat,
-        chat === undefined ? [] : document.querySelectorAll<HTMLElement>(CHAT_SEAT_SELECTOR),
-        hiddenSeqs,
-        hidden.current,
-      )
+      // Nothing to withdraw and nothing this bridge already hid means the pass
+      // would walk every row and change nothing: skip the whole-transcript
+      // `querySelectorAll` that each refresh otherwise paid.
+      if (hiddenSeqs.size > 0 || hidden.current.size > 0) {
+        hideWithdrawnSeats(
+          chat,
+          chat === undefined ? [] : document.querySelectorAll<HTMLElement>(CHAT_SEAT_SELECTOR),
+          hiddenSeqs,
+          hidden.current,
+        )
+      }
       // Nothing is logged in this per-batch scan: printing a hide set here would
       // flood the console during streaming.
       const durable = collectDurableTargets(snapshot, chat, hiddenSeqs)
       const next = [...durable, ...collectPendingTargets(snapshot, steeringItemsOf(inboxOf(session)?.['next-step']))]
-      // Diff: no change → no re-render (the observer fires on every mutation;
-      // only an actual target-set change should touch React).
+      // Diff: no change → no re-render. A refresh can run several times for one
+      // target set (chat publication, inbox, DOM catch-up); only an actual
+      // target-set change should touch React.
       setTargets(current => (sameTargets(current, next) ? current : next))
     }
 
-    // Coalesce: any number of mutations in a batch collapse into ONE refresh
-    // (microtask), instead of one synchronous full scan per mutation — this
+    // Coalesce: any number of triggers in a batch collapse into ONE refresh
+    // (microtask), instead of one synchronous full scan per trigger — this
     // is what keeps the plugin off the critical path of the frame that paints
     // a newly sent bubble.
     const queueRefresh = (): void => {
@@ -871,13 +893,37 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
     }
 
     refresh()
-    const observer = new MutationObserver(queueRefresh)
+    // The chat snapshot is the authority on what changed; the observer only
+    // catches a host re-render of a row that arrives without one (virtual
+    // scroll window, a reset `display`). Watching the whole body made every
+    // composer keystroke and every sidebar animation schedule a scan.
+    const unsubscribeChat = watchChat(sessionId, queueRefresh)
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        if (record.type === 'attributes') {
+          // Only a row this bridge hid can need re-hiding. Any other restyle —
+          // the composer's height variables, a sidebar resize, a third-party
+          // panel — cannot change the target set.
+          const target = record.target
+          if (target instanceof HTMLElement && hidden.current.has(target) && target.style.display !== 'none') {
+            queueRefresh()
+            return
+          }
+          continue
+        }
+        const node = record.target instanceof Element ? record.target : record.target.parentElement
+        if (node !== null && node.closest(IGNORED_PORTAL_SCOPE) !== null) continue
+        queueRefresh()
+        return
+      }
+    })
     // attributes: watch style so a harness re-render that resets display is
     // re-hidden on the next refresh instead of flickering back.
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] })
     return () => {
       active = false
       observer.disconnect()
+      unsubscribeChat()
       // The hides are this bridge's own mutation of host rows: undo them, or a
       // live disable leaves the transcript truncated for good.
       showHiddenSeats(hidden.current)
@@ -885,7 +931,7 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
       unsubscribeInbox = undefined
       inboxOwner = undefined
     }
-  }, [sessionId, sessionOf])
+  }, [sessionId, sessionOf, watchChat])
 
   return targets.map(target => createPortal(
     target.kind === 'pending'

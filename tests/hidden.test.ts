@@ -485,4 +485,21 @@ describe('hiddenSeqsOf withdrawn Turn chrome', () => {
     const turns = new Map([[3, ['u10', 'p3']]])
     expect(hiddenSeqsOf(snap(nodes, turns)).size).toBe(0)
   })
+
+  it('memoizes one snapshot without handing the cache to a caller', () => {
+    const nodes = [
+      viewNode('u0', 'user', 0),
+      viewNode('u1', 'user', 1),
+      executed('cmd', 5, 5, 1),
+    ]
+    const chat = snap(nodes)
+    const first = hiddenSeqsOf(chat)
+    expect(sorted(first)).toEqual([1, 5])
+    // A caller may mutate the answer; the cached fold must be unaffected.
+    first.add(999)
+    expect(sorted(hiddenSeqsOf(chat))).toEqual([1, 5])
+    // A new wrapper is a new cache key, so fresh content is folded again.
+    const fresh = hiddenSeqsOf(snap([...nodes, executed('cmd2', 9, 9, 1)]))
+    expect(sorted(fresh)).toEqual([1, 5, 9])
+  })
 })

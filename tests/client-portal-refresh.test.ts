@@ -243,3 +243,54 @@ describe('bridge unmount', () => {
     expect(seat.dataset.dshRewindHidden).toBeUndefined()
   })
 })
+
+describe('refresh scope and re-hide', () => {
+  it('ignores composer structure but still refreshes for transcript structure', async () => {
+    const { session } = fakeSession([])
+    let chatCalls = 0
+    const composer = document.createElement('div')
+    composer.dataset.composerSeat = ''
+    document.body.appendChild(composer)
+
+    mount({ ...depsFor(session), chatOf: () => { chatCalls++; return undefined } })
+    await settle()
+    const mounted = chatCalls
+
+    // Typing-like structure inside the composer is not this bridge's concern.
+    composer.appendChild(document.createElement('span'))
+    await settle()
+    expect(chatCalls).toBe(mounted)
+
+    // A transcript row mount must still wake the catch-up scan.
+    const seat = document.createElement('div')
+    seat.dataset.chatAnchorKey = 'u1'
+    document.body.appendChild(seat)
+    await settle()
+    expect(chatCalls).toBeGreaterThan(mounted)
+  })
+
+  it('re-hides a row whose display the host resets', async () => {
+    const { session } = fakeSession([])
+    const chat = {
+      order: ['c1'],
+      nodes: {
+        get: (key: string) => (key === 'c1'
+          ? { key: 'c1', kind: 'command', anchorSeq: 7, data: { name: 'rewind-plugin', args: 'preview @5 both', seq: 7 } }
+          : undefined),
+      },
+    }
+    const seat = document.createElement('div')
+    seat.dataset.chatAnchorKey = 'c1'
+    document.body.appendChild(seat)
+
+    mount({ ...depsFor(session), chatOf: () => chat })
+    await settle()
+    expect(seat.style.display).toBe('none')
+
+    // A host re-render resets the inline style; the style branch must re-hide.
+    seat.style.display = ''
+    await settle()
+    expect(seat.style.display).toBe('none')
+    expect(seat.dataset.dshRewindHidden).toBe('true')
+  })
+})

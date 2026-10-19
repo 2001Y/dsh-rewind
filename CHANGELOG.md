@@ -10,19 +10,29 @@ and the release steps are documented in
 
 > 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
 
+---
+
+> DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.17.1...vNEXT
+
+## [0.17.1] - 2026-10-19
+
+> 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
+
 ### 体验优化
 
 - **输入与侧栏动画不再触发整段重扫。** 回退桥此前盯着整个 `document.body`，每次在输入框敲键、每个侧栏动画都会重扫整段会话（两遍 `chat.order` 加全文 `querySelectorAll`）；现在按快照记忆化、没有隐藏行时跳过座位扫描，并且只在 composer 与插件面板之外的结构变化时唤醒。撤回隐藏与还原的结果不变。(#54) @Shiro-umi @SiriLee
 
 ---
 
-> DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+> DSH `>=0.2.1-rc.1 <0.3.0-0` supported.
 
 ### Improvements
 
 - **Typing and sidebar animations no longer trigger a whole-transcript rescan.** The rewind bridge used to watch all of `document.body`, so every composer keystroke and every sidebar animation rescanned the transcript (two passes over `chat.order` plus a document-wide `querySelectorAll`); it now memoises per snapshot, skips the seat pass when nothing is hidden, and only wakes for structure outside the composer and plugin panels. The hiding and restore results are unchanged. (#54) @Shiro-umi @SiriLee
 
-**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.17.0...vNEXT
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.17.0...v0.17.1
 
 ## [0.17.0] - 2026-10-18
 

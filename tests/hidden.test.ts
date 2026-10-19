@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { hasBackupDisabled, hasFileImpact, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, targetSeqOfArgs, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
+import { ENGINE_COMMAND, LEGACY_ENGINE_COMMAND, hasBackupDisabled, hasFileImpact, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, targetSeqOfArgs, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
 
 /** A chat view node for one row; only fields the hiding logic reads are real. */
 function viewNode(key: string, kind: string, anchorSeq: number, data: unknown = null, location?: unknown): ChatConversationViewNode {
@@ -28,15 +28,15 @@ function turnProcess(key: string, anchorSeq: number, turn: number, turnStart?: n
   )
 }
 
-/** One engine command row with an explicit settled outcome (`rewind` = legacy name). */
-function rewindCommand(key: string, anchorSeq: number, seq: number, outcome: CommandNode['outcome'], args: string | null = null, name = 'rewind'): ChatConversationViewNode {
+/** One engine command row with an explicit settled outcome. */
+function rewindCommand(key: string, anchorSeq: number, seq: number, outcome: CommandNode['outcome'], args: string | null = null, name = ENGINE_COMMAND): ChatConversationViewNode {
   return viewNode(key, 'command', anchorSeq, {
     kind: 'command', seq, time: 0, commandId: 'cid', name, args, outcome,
   } as unknown as CommandNode)
 }
 
 /** A real executed rewind (marker seq = sourceEventSeq), target N. */
-function executed(key: string, anchorSeq: number, seq: number, target: number, name = 'rewind'): ChatConversationViewNode {
+function executed(key: string, anchorSeq: number, seq: number, target: number, name = ENGINE_COMMAND): ChatConversationViewNode {
   return rewindCommand(key, anchorSeq, seq, {
     kind: 'success',
     text: `Withdrawn seq ${target} and everything after it (conversation returned to earlier).`,
@@ -45,7 +45,7 @@ function executed(key: string, anchorSeq: number, seq: number, target: number, n
 }
 
 /** A preview-only rewind: success but no marker appended. */
-function preview(key: string, anchorSeq: number, seq: number, target: number, name = 'rewind'): ChatConversationViewNode {
+function preview(key: string, anchorSeq: number, seq: number, target: number, name = ENGINE_COMMAND): ChatConversationViewNode {
   return rewindCommand(key, anchorSeq, seq, {
     kind: 'success',
     text: `Rewind to seq ${target}, removing 1 node(s) from the model context (conversation log kept).`,
@@ -54,7 +54,7 @@ function preview(key: string, anchorSeq: number, seq: number, target: number, na
 }
 
 /** The internal candidate-list probe (`__candidates`). */
-function candidateCommand(key: string, anchorSeq: number, seq: number, outcome: CommandNode['outcome'], name = 'rewind'): ChatConversationViewNode {
+function candidateCommand(key: string, anchorSeq: number, seq: number, outcome: CommandNode['outcome'], name = ENGINE_COMMAND): ChatConversationViewNode {
   return rewindCommand(key, anchorSeq, seq, outcome, '__candidates', name)
 }
 
@@ -82,19 +82,15 @@ describe('hiddenSeqsOf', () => {
     expect(sorted(hiddenSeqsOf(snap(nodes)))).toEqual([2, 3, 4, 5, 10])
   })
 
-  it('recognizes rows of the internal engine channel, not just the legacy name', () => {
+  it('still recognizes a legacy engine command row', () => {
     const nodes = [
       viewNode('u0', 'user', 0),
       viewNode('a1', 'assistant', 1),
       viewNode('u2', 'user', 2),
       viewNode('a3', 'assistant', 3),
-      executed('cmd', 10, 10, 2, 'rewind-plugin'),
-      preview('pv', 11, 11, 2, 'rewind-plugin'),
-      candidateCommand('cd', 12, 12, { kind: 'success', text: 'x' }, 'rewind-plugin'),
+      executed('cmd', 10, 10, 2, LEGACY_ENGINE_COMMAND),
     ]
-    // The executed row is hidden and cuts [2, 10]; both probes are hidden and
-    // contribute no range.
-    expect(sorted(hiddenSeqsOf(snap(nodes)))).toEqual([2, 3, 10, 11, 12])
+    expect(sorted(hiddenSeqsOf(snap(nodes)))).toEqual([2, 3, 10])
   })
 
   it('keeps rows cut by an earlier rewind hidden after a second rewind to a LATER point', () => {

@@ -7,7 +7,7 @@
  * undefined degradation when no view is registered.
  */
 import { describe, expect, it } from 'vitest'
-import { chatSnapshotOf, hiddenSeqsOf, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
+import { ENGINE_COMMAND, chatSnapshotOf, hiddenSeqsOf, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
 
 /** The 0.1.2 EMPTY_CHAT_SNAPSHOT shape (dsh-client-ui-chat): Map-like nodes. */
 const EMPTY_CHAT_SNAPSHOT_012 = {
@@ -49,11 +49,11 @@ describe('chatSnapshotOf (0.1.2 uiConversation "chat" view)', () => {
   })
 
   it('runs the hiding logic over a 0.1.2-shaped populated snapshot', () => {
-    // One executed /rewind @5 chat command (marker seq 7) + messages 1..9.
+    // One executed /rewind-plugin @5 chat command (marker seq 7) + messages 1..9.
     const command = {
       kind: 'command',
       anchorSeq: 7,
-      data: { seq: 7, name: 'rewind', args: '@5 chat', outcome: { kind: 'success', sourceEventSeq: 7 } },
+      data: { seq: 7, name: ENGINE_COMMAND, args: '@5 chat', outcome: { kind: 'success', sourceEventSeq: 7 } },
     }
     const node = (seq: number) => ({ kind: 'user', anchorSeq: seq, data: { seq, time: 0, content: [] } })
     const order = ['m1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm7', 'm8', 'm9']
@@ -80,7 +80,7 @@ describe('hiddenSeqsOf cut spans', () => {
       nodes.set(`c${cut.marker}`, {
         kind: 'command',
         anchorSeq: cut.marker,
-        data: { seq: cut.marker, name: 'rewind', args: `@${cut.target} chat`, outcome: { kind: 'success', sourceEventSeq: cut.marker } },
+        data: { seq: cut.marker, name: ENGINE_COMMAND, args: `@${cut.target} chat`, outcome: { kind: 'success', sourceEventSeq: cut.marker } },
       })
     }
     return {

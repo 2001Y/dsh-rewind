@@ -13,7 +13,7 @@ import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatConversationViewNode } from '../src/client/hidden.ts'
 import { waitForCommand } from '../src/client/popover.ts'
-import { isExecutedRewindCommand, resolveChatWatch, type ChatOf, type HiddenChat } from '../src/client/hidden.ts'
+import { ENGINE_COMMAND, isExecutedRewindCommand, resolveChatWatch, type ChatOf, type HiddenChat } from '../src/client/hidden.ts'
 
 const TARGET = 5
 const COMMAND_SEQ = 99
@@ -29,7 +29,7 @@ function userNode(seq: number): ChatConversationViewNode {
 
 function executedRewind(seq: number, target: number): ChatConversationViewNode {
   const data = {
-    kind: 'command', seq, time: 0, commandId: 'cid', name: 'rewind',
+    kind: 'command', seq, time: 0, commandId: 'cid', name: ENGINE_COMMAND,
     args: `@${target} both`,
     outcome: { kind: 'success', text: OUTCOME_TEXT, sourceEventSeq: seq },
   } as unknown as CommandNode

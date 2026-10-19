@@ -21,7 +21,7 @@ import {
   actionsContainerOf, bubbleTextOf, collectDurableTargets, collectTargets, hideWithdrawnSeats, isRewindInertSession,
   resolveSeatAnchorSeq,
 } from '../src/client/portals.tsx'
-import { hiddenSeqsOf, type HiddenChat } from '../src/client/hidden.ts'
+import { ENGINE_COMMAND, hiddenSeqsOf, type HiddenChat } from '../src/client/hidden.ts'
 
 /** A durable user node in the HiddenChat shape the collector reads. */
 function userNode(seq: number) {
@@ -278,7 +278,7 @@ describe('resolveSeatAnchorSeq (withdrawn-seat hiding)', () => {
   const markerCommand = (seq: number, target: number) => ({
     kind: 'command',
     anchorSeq: seq,
-    data: { name: 'rewind', seq, args: `@${target} chat`, outcome: { kind: 'success', sourceEventSeq: seq } },
+    data: { name: ENGINE_COMMAND, seq, args: `@${target} chat`, outcome: { kind: 'success', sourceEventSeq: seq } },
   })
 
   /** One tool-call node, keyed as the assembler keys it (`<kind.length>:<kind><id>`). */

@@ -14,7 +14,7 @@ import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatConversationViewNode } from '../src/client/hidden.ts'
 import { runRewindAndFill } from '../src/client/portals.tsx'
-import type { ChatOf, ChatWatch, HiddenChat } from '../src/client/hidden.ts'
+import { ENGINE_COMMAND, type ChatOf, type ChatWatch, type HiddenChat } from '../src/client/hidden.ts'
 
 const TARGET = 5
 const COMMAND_SEQ = 99
@@ -48,7 +48,7 @@ function imageOnlyNode(seq: number): ChatConversationViewNode {
 /** An executed rewind command row (success + marker) targeting `target`. */
 function executedRewind(seq: number, target: number): ChatConversationViewNode {
   const data = {
-    kind: 'command', seq, time: 0, commandId: 'cid', name: 'rewind',
+    kind: 'command', seq, time: 0, commandId: 'cid', name: ENGINE_COMMAND,
     args: `@${target} both`,
     outcome: { kind: 'success', text: `Withdrawn seq ${target} and everything after it.`, sourceEventSeq: seq },
   } as unknown as CommandNode

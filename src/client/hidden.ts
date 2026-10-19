@@ -14,12 +14,11 @@ import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client
  */
 export const ENGINE_COMMAND = 'rewind-plugin'
 
-/**
- * Recognized engine command names. `rewind` is what sessions written before the
- * engine channel existed contain, so keeping it preserves their withdrawn
- * spans (forward compatibility only: an older client cannot know the new name).
- */
-export const ENGINE_COMMANDS: ReadonlySet<string> = new Set([ENGINE_COMMAND, 'rewind'])
+/** Legacy engine command name. */
+export const LEGACY_ENGINE_COMMAND = 'rewind'
+
+/** Engine command names the client recognizes. */
+export const ENGINE_COMMANDS: ReadonlySet<string> = new Set([ENGINE_COMMAND, LEGACY_ENGINE_COMMAND])
 
 /** A chat-snapshot view node as the hiding / composer-refill logic reads it.
  * The harness's view node shape plus the `anchorSeq` the chat snapshot carries

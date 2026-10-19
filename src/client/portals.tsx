@@ -396,18 +396,18 @@ const USER_SEAT_SELECTOR = '[data-chat-flow-kind="user"][data-chat-anchor-key], 
 const CHAT_SEAT_SELECTOR = '[data-chat-anchor-key]'
 
 /**
- * Subtrees whose mutations can never change this bridge's target set: the
- * composer, the right-hand sidebar and panels other plugins own. The chat
- * snapshot subscription is the authoritative trigger, so ignoring these costs
- * no update — it only stops every keystroke and every sidebar animation from
- * scheduling a whole-transcript scan.
+ * Subtrees whose mutations cannot change this bridge's target set in the
+ * targeted DSH line: the composer, the right-hand sidebar, the host's plugin
+ * page, and third-party content fences. The chat snapshot subscription is the
+ * authoritative trigger, so ignoring these costs no update — it only stops
+ * every keystroke and the ignored panels' animations from scheduling a
+ * whole-transcript scan.
  */
 const IGNORED_PORTAL_SCOPE = [
   '[data-composer-seat]',
   '[data-composer-input]',
   '[data-sidebar-right-panel]',
   '[data-sidebar-chat]',
-  '[data-panel-conversation]',
   '[data-plugin-panel]',
   '.genui-dom-fence',
   '.genui-dom-fence-diagnostic',
@@ -774,13 +774,14 @@ interface RewindPortalsProps extends RewindBridgeDeps {
 /**
  * Session-scoped portal bridge: renders the ↶ button of every user message
  * row of the session the harness mounts it for. The refresh is coalesced
- * (one pass per mutation batch via queueMicrotask) and diffed (setState is
+ * (one pass per microtask window via queueMicrotask) and diffed (setState is
  * skipped when the target set is unchanged), so the plugin never runs a
  * synchronous full-transcript scan inside a commit microtask.
  *
- * The scan is driven by both channels its targets are made of: the DOM (rows and
- * their actions containers) and the session's `inbox` projection (the pending
- * occurrences — see `syncInboxSubscription`).
+ * The refresh is driven by the three inputs its targets are made of: the chat
+ * snapshot (`hiddenSeqsOf`), the session's `inbox` projection (the pending
+ * occurrences — see `syncInboxSubscription`), and the DOM (row/actions mounts,
+ * via the scoped observer).
  */
 export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession, watchChat, t, subscribeLocale, setComposerText, restoreImages }: RewindPortalsProps): ReactNode {
   const [targets, setTargets] = useState<readonly PortalTarget[]>([])
@@ -850,13 +851,14 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
       // flood the console during streaming.
       const durable = collectDurableTargets(snapshot, chat, hiddenSeqs)
       const next = [...durable, ...collectPendingTargets(snapshot, steeringItemsOf(inboxOf(session)?.['next-step']))]
-      // Diff: no change → no re-render (the observer fires on every mutation;
-      // only an actual target-set change should touch React).
+      // Diff: no change → no re-render. A refresh can run several times for one
+      // target set (chat publication, inbox, DOM catch-up); only an actual
+      // target-set change should touch React.
       setTargets(current => (sameTargets(current, next) ? current : next))
     }
 
-    // Coalesce: any number of mutations in a batch collapse into ONE refresh
-    // (microtask), instead of one synchronous full scan per mutation — this
+    // Coalesce: any number of triggers in a batch collapse into ONE refresh
+    // (microtask), instead of one synchronous full scan per trigger — this
     // is what keeps the plugin off the critical path of the frame that paints
     // a newly sent bubble.
     const queueRefresh = (): void => {

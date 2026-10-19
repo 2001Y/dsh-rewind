@@ -368,11 +368,12 @@ function addWithdrawnTurnChrome(snap: HiddenChat, cuts: readonly CutSpan[], hidd
 /**
  * Per-snapshot memo of {@link hiddenSeqsOf}.
  *
- * A chat snapshot is immutable and identity-stable until the next committed
- * event, while the refresher runs once per DOM mutation batch. The fold walks
- * `snap.order` twice to answer a question that cannot have changed in between,
- * so the answer is kept against the snapshot object itself (a WeakMap: the
- * entry dies with the snapshot). Every caller only reads the set.
+ * A chat snapshot wrapper is replaced on every committed update, while the
+ * refresher runs once per DOM mutation batch; the fold cannot have changed
+ * between those refreshes. Only pass the snapshot just read from `chatOf` —
+ * its `nodes` is a live store, so a retained wrapper is not a historical value.
+ * The cache keeps its own copy and every hit returns a copy: the exported API
+ * must not hand callers a shared mutable `Set` that could poison the cache.
  */
 const hiddenSeqsMemo = new WeakMap<HiddenChat, Set<number>>()
 
@@ -394,7 +395,7 @@ const hiddenSeqsMemo = new WeakMap<HiddenChat, Set<number>>()
  */
 export function hiddenSeqsOf(snap: HiddenChat): Set<number> {
   const memo = hiddenSeqsMemo.get(snap)
-  if (memo !== undefined) return memo
+  if (memo !== undefined) return new Set(memo)
   const hidden = new Set<number>()
   const spans: CutSpan[] = []
   for (const key of snap.order) {
@@ -436,6 +437,6 @@ export function hiddenSeqsOf(snap: HiddenChat): Set<number> {
   } catch {
     // A malformed index must not break the hiding that already works.
   }
-  hiddenSeqsMemo.set(snap, hidden)
+  hiddenSeqsMemo.set(snap, new Set(hidden))
   return hidden
 }

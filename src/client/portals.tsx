@@ -397,11 +397,10 @@ const CHAT_SEAT_SELECTOR = '[data-chat-anchor-key]'
 
 /**
  * Subtrees whose mutations cannot change this bridge's target set in the
- * targeted DSH line: the composer, the right-hand sidebar, the host's plugin
- * page, and third-party content fences. The chat snapshot subscription is the
- * authoritative trigger, so ignoring these costs no update — it only stops
- * every keystroke and the ignored panels' animations from scheduling a
- * whole-transcript scan.
+ * targeted DSH line: the composer, the right-hand sidebar, and the host's
+ * plugin page. The chat snapshot subscription is the authoritative trigger,
+ * so ignoring these costs no update — it only stops every keystroke and the
+ * ignored panels' animations from scheduling a whole-transcript scan.
  */
 const IGNORED_PORTAL_SCOPE = [
   '[data-composer-seat]',
@@ -409,8 +408,6 @@ const IGNORED_PORTAL_SCOPE = [
   '[data-sidebar-right-panel]',
   '[data-sidebar-chat]',
   '[data-plugin-panel]',
-  '.genui-dom-fence',
-  '.genui-dom-fence-diagnostic',
 ].join(', ')
 
 /**

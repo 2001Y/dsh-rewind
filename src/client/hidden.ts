@@ -366,6 +366,17 @@ function addWithdrawnTurnChrome(snap: HiddenChat, cuts: readonly CutSpan[], hidd
 }
 
 /**
+ * Per-snapshot memo of {@link hiddenSeqsOf}.
+ *
+ * A chat snapshot is immutable and identity-stable until the next committed
+ * event, while the refresher runs once per DOM mutation batch. The fold walks
+ * `snap.order` twice to answer a question that cannot have changed in between,
+ * so the answer is kept against the snapshot object itself (a WeakMap: the
+ * entry dies with the snapshot). Every caller only reads the set.
+ */
+const hiddenSeqsMemo = new WeakMap<HiddenChat, Set<number>>()
+
+/**
  * Anchor seqs that must be hidden from the rendered transcript so the user sees
  * the conversation as the agent sees it: every impact-preview flow node (it only
  * exists to feed the popover) and every SUCCESSFUL executed `/rewind` command
@@ -382,6 +393,8 @@ function addWithdrawnTurnChrome(snap: HiddenChat, cuts: readonly CutSpan[], hidd
  * row, whose own anchor can precede the target (see `addWithdrawnTurnChrome`).
  */
 export function hiddenSeqsOf(snap: HiddenChat): Set<number> {
+  const memo = hiddenSeqsMemo.get(snap)
+  if (memo !== undefined) return memo
   const hidden = new Set<number>()
   const spans: CutSpan[] = []
   for (const key of snap.order) {
@@ -423,5 +436,6 @@ export function hiddenSeqsOf(snap: HiddenChat): Set<number> {
   } catch {
     // A malformed index must not break the hiding that already works.
   }
+  hiddenSeqsMemo.set(snap, hidden)
   return hidden
 }

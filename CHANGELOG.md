@@ -10,9 +10,25 @@ and the release steps are documented in
 
 > 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
 
+### 新增功能
+
+- **回退的读取改走 Connection RPC。** 模式弹窗的影响预览与 `/rewind` 候选列表不再占用命令通道，也不再往会话日志追加 `command/run` / `command/done`、不等聊天节点；执行命令与其结果不变。#55 报告了该问题。(#56) @SiriLee
+
+### 体验优化
+
+- **模式弹窗的材质与宿主 overlay 对齐。** 改用官方 `--dsw-specific-menu` 与 `--dsw-menu-backdrop-filter`，隔离弹窗表面，并用 elevation 描边与阴影替代中性边框。#55 报告了材质与官方规范不符。@SiriLee
+
 ---
 
 > DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+
+### New Features
+
+- **Rewind reads now go over Connection RPC.** The mode popover's impact preview and the `/rewind` candidate list no longer use the command channel, no longer append `command/run` / `command/done` to the session log, and no longer wait on chat nodes; the execution command and its results are unchanged. The problem was reported in #55. (#56) @SiriLee
+
+### Improvements
+
+- **The mode popover's material now matches the host overlay.** It uses the documented `--dsw-specific-menu` and `--dsw-menu-backdrop-filter`, isolates its surface, and takes the elevation stroke and shadow instead of a neutral border. #55 reported the material's mismatch with the official spec. @SiriLee
 
 **Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.17.1...vNEXT
 

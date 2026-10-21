@@ -941,8 +941,6 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
           target={target}
           sessionId={sessionId}
           sessionOf={sessionOf}
-          chatOf={chatOf}
-          watchChat={watchChat}
           setComposerText={setComposerText}
           t={t}
         />
@@ -1086,15 +1084,12 @@ interface RetractButtonProps {
   readonly target: Extract<PortalTarget, { kind: 'pending' }>
   readonly sessionId: string
   readonly sessionOf: (sessionId: string) => SessionFace | undefined
-  /** Passed through to openPopover (the shared PopoverOptions shape). */
-  readonly chatOf: ChatOf
-  readonly watchChat: ChatWatch
   readonly setComposerText: (sessionId: string, text: string) => boolean
   readonly t: Translate
 }
 
 /** The per-pending-message ↶ button (same visual family as the durable button). */
-function RetractButton({ target, sessionId, sessionOf, chatOf, watchChat, setComposerText, t }: RetractButtonProps): ReactNode {
+function RetractButton({ target, sessionId, sessionOf, setComposerText, t }: RetractButtonProps): ReactNode {
   const onClick = (event: ReactMouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation()
     const session = sessionOf(sessionId)

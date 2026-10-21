@@ -56,7 +56,8 @@ function isCandidate(value: unknown): value is RewindCandidate {
 }
 
 function isAbort(error: unknown): boolean {
-  return error instanceof Error && (error.name === 'AbortError' || error.name === 'TimeoutError')
+  const name = (error as { readonly name?: unknown } | null)?.name
+  return name === 'AbortError' || name === 'TimeoutError'
 }
 
 /** Resolve one target's file impact over RPC. */

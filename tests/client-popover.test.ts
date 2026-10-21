@@ -91,7 +91,7 @@ describe('openPopover (the impact step reports checkpointing-off)', () => {
     return document.querySelector(`.${CLASS.popoverImpact}`)?.textContent ?? ''
   }
 
-  it('appends the note when the host reports backup=off', async () => {
+  it('appends the note when the host reports backupOff', async () => {
     const impact = await impactText([{ path: '/a', action: 'restore' }], true)
     expect(impact).toContain('popover.impact.restore:/a')
     expect(impact).toContain('popover.backupDisabled')

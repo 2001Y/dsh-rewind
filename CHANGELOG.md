@@ -10,6 +10,16 @@ and the release steps are documented in
 
 > 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
 
+---
+
+> DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.18.0...vNEXT
+
+## [0.18.0] - 2026-10-21
+
+> 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
+
 ### 新增功能
 
 - **回退的读取改走 Connection RPC。** 模式弹窗的影响预览与 `/rewind` 候选列表不再占用命令通道，也不再往会话日志追加 `command/run` / `command/done`、不等聊天节点；执行命令与其结果不变。#55 报告了该问题。(#56) @SiriLee
@@ -30,7 +40,7 @@ and the release steps are documented in
 
 - **The mode popover's material now matches the host overlay.** It uses the documented `--dsw-specific-menu` and `--dsw-menu-backdrop-filter`, isolates its surface, and takes the elevation stroke and shadow instead of a neutral border. #55 reported the material's mismatch with the official spec. @SiriLee
 
-**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.17.1...vNEXT
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.17.1...v0.18.0
 
 ## [0.17.1] - 2026-10-19
 

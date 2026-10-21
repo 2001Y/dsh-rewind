@@ -186,31 +186,6 @@ export function listRewindCandidates(
   return candidates
 }
 
-/** Header line of the machine-readable candidate list (locale-independent). */
-export const CANDIDATE_LIST_HEADER = 'candidates='
-
-/**
- * Encode a candidate list as the host→client machine channel (the same
- * trailer pattern `formatPlan` uses for `impact=`). The client popupSelect
- * parses this instead of reading the windowed chat snapshot, so the candidate
- * list reflects the FULL host surface — not just the already-loaded history.
- *
- * Lines (each preview is already whitespace-collapsed and tab-free by
- * `messagePreview`):
- *   candidates=<n>
- *   <seq>\t<time>\t<preview>
- *   … (one line per candidate, newest first, matching `listRewindCandidates`)
- *
- * A list with no candidates is just `candidates=0`.
- */
-export function formatCandidateList(candidates: readonly RewindCandidate[]): string {
-  const lines = [`${CANDIDATE_LIST_HEADER}${candidates.length}`]
-  for (const candidate of candidates) {
-    lines.push(`${candidate.seq}\t${candidate.time}\t${candidate.preview}`)
-  }
-  return lines.join('\n')
-}
-
 /**
  * Resolve a target against the session log and surface into a validated plan.
  * @param events - the full session event log.

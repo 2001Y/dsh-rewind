@@ -10,7 +10,6 @@ import type { RewindKey } from '../src/client/locales.ts'
 import {
   formatCandidateTime,
   messagePreviewOf,
-  rewindCandidatesFromHostText,
   rewindCandidatesOf,
   rewindOptionsFromCandidates,
   type CandidateChat,
@@ -117,30 +116,6 @@ describe('formatCandidateTime', () => {
     const d = new Date(2026, 7, 21, 9, 5)
     expect(formatCandidateTime(d.getTime())).toBe('09:05')
     expect(formatCandidateTime(new Date(2026, 7, 21, 23, 59).getTime())).toBe('23:59')
-  })
-})
-
-describe('rewindCandidatesFromHostText', () => {
-  it('parses a host candidate list into typed candidates', () => {
-    const text = 'candidates=2\n4\t240000\tthird question\n0\t0\tfirst question'
-    expect(rewindCandidatesFromHostText(text)).toEqual([
-      { seq: 4, time: 240000, preview: 'third question' },
-      { seq: 0, time: 0, preview: 'first question' },
-    ])
-  })
-
-  it('returns an empty list for candidates=0', () => {
-    expect(rewindCandidatesFromHostText('candidates=0')).toEqual([])
-  })
-
-  it('returns an empty list when the header is missing or malformed', () => {
-    expect(rewindCandidatesFromHostText('nope')).toEqual([])
-    expect(rewindCandidatesFromHostText('candidates=')).toEqual([])
-  })
-
-  it('skips malformed lines but keeps valid ones', () => {
-    const text = 'candidates=3\n4\t240000\tok\nbad-line\n5\tnot-a-number\tno'
-    expect(rewindCandidatesFromHostText(text).map(c => c.seq)).toEqual([4])
   })
 })
 

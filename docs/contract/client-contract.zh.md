@@ -24,7 +24,7 @@ const chat = uiConversation.binding(sessionId).target('chat')?.getSnapshot() // 
 const hidden = hiddenSeqsOf(chat as HiddenChat) // 被隐藏的 anchor seq 集合
 ```
 
-`hiddenSeqsOf` 隐藏所有内部探针行（`preview` / `__candidates`）、所有成功
+`hiddenSeqsOf` 隐藏所有遗留的内部探针行（`preview` / `__candidates`）、所有成功
 执行的引擎命令行（`rewind-plugin`；旧会话里是 `rewind`），以及每条回退 `[target, marker]` 区间内的消息（每次
 回退切一条区间，区间互不合并）。某回合的行被**全部**撤回时，该回合的
 Turn 过程摘要行也会一并隐藏——它自身的锚点可能早于 target。只需从命令
@@ -45,8 +45,7 @@ Turn 过程摘要行也会一并隐藏——它自身的锚点可能早于 targe
 ## 明确非契约
 
 `outcome.text` 是面向人类用户的文案，措辞随本地化自由变更，解析它即视为
-bug。preview 文案中的 `impact=<n>` 尾注是机器可读且稳定的，但不属于本
-契约范围。
+bug。preview 影响与候选列表走插件的宿主 RPC 通道。
 
 ## 维护规则
 

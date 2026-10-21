@@ -25,7 +25,7 @@ const chat = uiConversation.binding(sessionId).target('chat')?.getSnapshot() // 
 const hidden = hiddenSeqsOf(chat as HiddenChat) // Set<number> of anchor seqs
 ```
 
-`hiddenSeqsOf` hides every internal probe row (`preview` / `__candidates`),
+`hiddenSeqsOf` hides every legacy internal probe row (`preview` / `__candidates`),
 every successful executed engine command row (`rewind-plugin`; `rewind` in older
 sessions), and every message inside its
 `[target, marker]` span (each rewind cuts one span; spans stay separate). A Turn
@@ -50,8 +50,8 @@ Turn-process summary row (whose anchor can sit before the span). Contract:
 ## Explicit non-contract
 
 `outcome.text` is human-facing copy. Its wording changes freely with
-localization; parsing it is a bug. The `impact=<n>` trailer on preview text
-is machine-readable and stable but outside this contract's scope.
+localization; parsing it is a bug. Preview impact and candidate lists are
+delivered over the plugin's host RPC channel.
 
 ## Maintenance rules
 

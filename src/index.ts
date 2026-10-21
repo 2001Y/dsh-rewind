@@ -29,15 +29,15 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands'
 import type { FileSystem } from '@deepseek-ai/dsh-fs'
 import { createUserMessage, type ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { Session, SessionEvent, SessionSeq, UserMessage } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionId, SessionSeq, UserMessage } from '@deepseek-ai/dsh-session'
 import type { PostToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import type { WorkingDirectoryService } from '@deepseek-ai/dsh-working-directory'
 import { copyFile, rm, stat, unlink } from 'node:fs/promises'
 import type {} from '@deepseek-ai/dsh-settings'
 import z from '@deepseek-ai/schemastery'
 import { preferredLocale, translate, type HostKey, type HostLocaleId } from './locales.ts'
-import { formatCandidateList, listRewindCandidates, parseRewindTarget, planRewind, REWIND_MARKER_SOURCE, RewindError, type RewindMode, type RewindPlan } from './rewind.ts'
-import { DEFAULT_MAX_FILE_BYTES, MAX_ANCHOR_GROUPS, reconcileTracked, SnapshotStore, UnknownStoreVersionError, type ClearSessionReport, type PendingBackup, type PruneStaleReport, type RestoreOutcome, type UncoveredPath } from './snapshot.ts'
+import { listRewindCandidates, parseRewindTarget, planRewind, REWIND_MARKER_SOURCE, RewindError, type RewindMode, type RewindPlan } from './rewind.ts'
+import { DEFAULT_MAX_FILE_BYTES, MAX_ANCHOR_GROUPS, reconcileTracked, SnapshotStore, UnknownStoreVersionError, type ClearSessionReport, type FileImpact, type PendingBackup, type PruneStaleReport, type RestoreOutcome, type UncoveredPath } from './snapshot.ts'
 import {
   AUTO_SWEEP_INTERVAL_MS,
   DEFAULT_CLEANUP_CONFIG,
@@ -64,6 +64,9 @@ export const inject = ['commands', 'tools', 'settings']
  * in `src/client/hidden.ts` — the two bundles share no module.
  */
 export const ENGINE_COMMAND = 'rewind-plugin'
+
+/** The browser RPC channel that replaces the old preview/candidates commands. */
+const REWIND_RPC_CHANNEL = '/dsh-rewind'
 
 /** Plugin config. */
 export interface RewindConfig {
@@ -206,7 +209,7 @@ function t(key: HostKey, params?: Record<string, string | number>): string {
 function warnCommandUnavailable(ctx: Context, name: string, error: unknown): void {
   ctx.logger.warn(`[dsh-rewind] command "${name}" was not registered: ${error instanceof Error ? error.message : String(error)}`)
   if (name === ENGINE_COMMAND) {
-    ctx.logger.warn(`[dsh-rewind] the internal "${ENGINE_COMMAND}" engine channel is unavailable; the rewind button and picker will not work.`)
+    ctx.logger.warn(`[dsh-rewind] the internal "${ENGINE_COMMAND}" engine channel is unavailable; rewind execution will not work.`)
   }
 }
 
@@ -487,57 +490,6 @@ function formatBytes(bytes: number): string {
   return `${bytes} B`
 }
 
-/**
- * Render an impact list for `preview` and the `both` confirmation. The human
- * copy follows the active host locale; the trailing block is a
- * locale-independent machine channel the client parses to render its own
- * localized popover and to decide both-mode availability:
- *   `impact=<n>`        → number of files affected
- *   `restore:<path>`    → one file to restore
- *   `delete:<path>`     → one file to delete
- *   `backup=off`        → new file checkpoints are disabled (restore may be incomplete)
- * The client MUST render from these tokens, never from the human copy.
- *
- * `uncovered` names recorded paths whose current size is over the backup cap:
- * a rewind will not touch them, and saying so up front keeps the cap an honest
- * limitation instead of a silent gap.
- */
-function formatPlan(
-  plan: RewindPlan,
-  files: readonly { path: string; action: 'restore' | 'delete' }[],
-  uncovered: readonly UncoveredPath[] = [],
-  maxFileBytes = 0,
-  checkpointingEnabled = true,
-): string {
-  const lines = [
-    t('plan.rewinding', { targetSeq: plan.targetSeq, count: plan.shadowedSeqs.length }),
-  ]
-  if (files.length > 0) {
-    lines.push(t('plan.affects', { count: files.length }))
-    for (const file of files) {
-      lines.push(`  ${file.action === 'restore' ? t('plan.restore', { path: file.path }) : t('plan.delete', { path: file.path })}`)
-    }
-  } else {
-    lines.push(t('plan.noChanges'))
-  }
-  if (uncovered.length > 0) {
-    lines.push(t('uncovered.header', { count: uncovered.length, limit: formatBytes(maxFileBytes) }))
-    // List a bounded number of paths: the count above stays exact.
-    for (const file of uncovered.slice(0, 5)) lines.push(`  ${file.path}`)
-    if (uncovered.length > 5) lines.push('  …')
-  }
-  if (!checkpointingEnabled) lines.push(t('plan.backupOff'))
-  // Machine-readable trailer (stable literal, locale-independent): the client
-  // parses `impact=<n>`, the restore:/delete: lines, and `backup=off` to render
-  // its own localized copy — never the human lines above.
-  lines.push(`impact=${files.length}`)
-  for (const file of files) {
-    lines.push(`${file.action}:${file.path}`)
-  }
-  if (!checkpointingEnabled) lines.push('backup=off')
-  return lines.join('\n')
-}
-
 /** Resolve a raw target token into a plan, mapping failures to messages. */
 function resolveOrError(events: readonly SessionEvent[], surface: readonly number[], raw: string): RewindPlan {
   const target = parseRewindTarget(raw)
@@ -545,6 +497,96 @@ function resolveOrError(events: readonly SessionEvent[], surface: readonly numbe
     throw new RewindError('invalid-index', t('error.invalidTarget', { raw }))
   }
   return planRewind(events, surface, target)
+}
+
+/** The file impact of a rewind target, served over the RPC channel. */
+interface PreviewImpact {
+  readonly files: readonly FileImpact[]
+  /** Recorded paths whose current size is over the backup cap. */
+  readonly uncovered: readonly UncoveredPath[]
+  /** New snapshots are disabled; the restore may be incomplete. */
+  readonly backupOff: boolean
+}
+
+/** Compute one target's file impact against the current disk. */
+async function previewImpact(
+  store: SnapshotStore,
+  session: Session,
+  seq: number,
+  checkpointingEnabled: boolean,
+): Promise<PreviewImpact> {
+  const plan = resolveOrError(session.snapshotEvents(), session.surface.nodes, `@${seq}`)
+  let impacts: readonly FileImpact[]
+  try {
+    impacts = await store.impactsAfter(session.id, plan.targetSeq)
+  } catch (error) {
+    if (!(error instanceof UnknownStoreVersionError)) throw error
+    throw new Error(t('storeUnsupported', { version: await store.readStoreVersion(session.id) ?? 0 }))
+  }
+  const uncovered = await store.uncoveredPaths(session.id).catch(() => [] as UncoveredPath[])
+  return { files: impacts, uncovered, backupOff: !checkpointingEnabled }
+}
+
+/** Result envelope of one rewind RPC endpoint. */
+type RewindRpcResult =
+  | { readonly ok: true; readonly value: unknown }
+  | { readonly ok: false; readonly error: { readonly code: string; readonly message: string; readonly details: object } }
+
+/** Handler shape of the Host Connection generic RPC registry. */
+type RewindRpcHandler = (endpoint: string, payload: unknown, signal: AbortSignal, peer: unknown) => Promise<RewindRpcResult>
+
+/** The slice of `ctx.connection` this plugin registers on. */
+interface RewindRpcHost {
+  readonly rpc: { handle(channel: string, handler: RewindRpcHandler): () => Promise<void> }
+}
+
+/** The slice of `ctx.agents` the RPC handler resolves a session through. */
+interface AgentLookup {
+  get(sessionId: SessionId): { readonly session: Session } | undefined
+}
+
+/** True for a plain object payload. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Build one failed RPC result. */
+function rpcFailure(code: string, message: string): RewindRpcResult {
+  return { ok: false, error: { code, message, details: {} } }
+}
+
+/** Serve the impact preview and the candidate list over Connection RPC. */
+function createRewindRpcHandler(
+  store: SnapshotStore,
+  agents: AgentLookup,
+  checkpointingEnabled: () => boolean,
+): RewindRpcHandler {
+  return async (endpoint, payload) => {
+    try {
+      if (!isRecord(payload)) return rpcFailure('rewind/bad-request', 'invalid payload')
+      const sessionId = payload['sessionId']
+      if (typeof sessionId !== 'string' || sessionId.length === 0) {
+        return rpcFailure('rewind/bad-request', 'sessionId must be a non-empty string')
+      }
+      const agent = agents.get(sessionId as SessionId)
+      if (agent === undefined) return rpcFailure('rewind/session-not-found', `session ${sessionId} is not attached`)
+      const session = agent.session
+      if (endpoint === 'preview') {
+        const seq = payload['seq']
+        if (!Number.isSafeInteger(seq)) return rpcFailure('rewind/bad-request', 'seq must be an integer')
+        return { ok: true, value: await previewImpact(store, session, seq as number, checkpointingEnabled()) }
+      }
+      if (endpoint === 'candidates') {
+        return {
+          ok: true,
+          value: { candidates: listRewindCandidates(session.snapshotEvents(), session.surface.nodes) },
+        }
+      }
+      return rpcFailure('rewind/unknown-endpoint', `unknown endpoint: ${endpoint}`)
+    } catch (error) {
+      return rpcFailure('rewind/failed', error instanceof Error ? error.message : String(error))
+    }
+  }
 }
 
 /** One failed file restore, rendered for the result text. */
@@ -851,39 +893,6 @@ async function handleRewind(
   }
 
   const parts = input.split(/\s+/)
-  if (parts[0] === 'preview') {
-    const target = parts[1]
-    if (target === undefined) return { kind: 'error', text: t('engine.rejected') }
-    let plan: RewindPlan
-    try {
-      plan = resolveOrError(session.snapshotEvents(), session.surface.nodes, target)
-    } catch (error) {
-      return rewindErrorResult(error)
-    }
-    const impacts = await store.impactsAfter(session.id, plan.targetSeq).catch((error: unknown) => {
-      // A store format newer than this build: report it instead of pretending
-      // there is nothing to restore (the preview must not lie in either
-      // direction). Nothing is changed either way.
-      if (error instanceof UnknownStoreVersionError) return undefined
-      throw error
-    })
-    if (impacts === undefined) {
-      return { kind: 'error', text: t('storeUnsupported', { version: await store.readStoreVersion(session.id) ?? 0 }) }
-    }
-    // Name the cap's coverage gap up front, alongside the impact list.
-    const uncovered = await store.uncoveredPaths(session.id).catch(() => [] as UncoveredPath[])
-    return { kind: 'success', text: formatPlan(plan, impacts, uncovered, store.fileCapBytes, checkpointingEnabled) }
-  }
-
-  // Internal machine channel: `__candidates` returns the FULL
-  // candidate list (host surface + full event log) so the client popupSelect
-  // can render every reachable rewind target — not just the already-loaded
-  // history window. Side-effect free: no event is appended, nothing rewound.
-  if (parts[0] === '__candidates') {
-    const candidates = listRewindCandidates(session.snapshotEvents(), session.surface.nodes)
-    return { kind: 'success', text: formatCandidateList(candidates) }
-  }
-
   const target = parts[0]!
   const mode = parts[1]
   if (mode !== undefined && mode !== 'chat' && mode !== 'both') {
@@ -1386,6 +1395,17 @@ export function apply(ctx: Context, config?: Config): void {
       }
     })()
   }, { global: true })
+
+  ctx.inject(['agents', 'connection'], (scope) => {
+    const agents = scope.get('agents') as AgentLookup | undefined
+    const connection = scope.get('connection') as RewindRpcHost | undefined
+    if (agents === undefined || connection === undefined) return
+    const dispose = connection.rpc.handle(
+      REWIND_RPC_CHANNEL,
+      createRewindRpcHandler(store, agents, () => isFileCheckpointingEnabled(config)),
+    )
+    scope.effect(() => () => { void dispose() }, 'dsh-rewind RPC channel')
+  })
 
   ctx.inject(['fs', 'workingDirectory'], (scope) => {
     const fs = scope.fs

@@ -79,6 +79,21 @@ describe('popover keyboard focus', () => {
   })
 })
 
+describe('floating surfaces pair the menu fill with the shared filter', () => {
+  it('never paints --dsw-specific-menu without the filter, a border, or a neutral shadow', () => {
+    const rules = allRules()
+    for (const selector of ['.dsh-rewind-popover', '.dsh-rewind-guard-hint']) {
+      const rule = rules.get(selector)
+      expect(rule, `${selector} is missing`).toBeDefined()
+      expect(rule?.['background'], selector).toBe('var(--dsw-specific-menu, var(--dsw-alias-bg-layer-3))')
+      expect(rule?.['backdrop-filter'], selector).toBe('var(--dsw-menu-backdrop-filter)')
+      expect(rule?.['border'], selector).toBe('0')
+      expect(rule?.['box-shadow'], selector).toMatch(/^var\(--dsw-elevation-/)
+      expect(rule?.['isolation'], selector).toBe('isolate')
+    }
+  })
+})
+
 describe('action button geometry', () => {
   // The ↶ button is a sibling of the harness IconActions buttons and scales by
   // the same content-font delta.

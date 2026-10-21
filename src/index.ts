@@ -558,7 +558,7 @@ function rpcFailure(code: string, message: string): RewindRpcResult {
 /** Serve the impact preview and the candidate list over Connection RPC. */
 function createRewindRpcHandler(
   store: SnapshotStore,
-  agents: AgentLookup,
+  agentsOf: () => AgentLookup | undefined,
   checkpointingEnabled: () => boolean,
 ): RewindRpcHandler {
   return async (endpoint, payload) => {
@@ -568,6 +568,8 @@ function createRewindRpcHandler(
       if (typeof sessionId !== 'string' || sessionId.length === 0) {
         return rpcFailure('rewind/bad-request', 'sessionId must be a non-empty string')
       }
+      const agents = agentsOf()
+      if (agents === undefined) return rpcFailure('rewind/agents-unavailable', 'agent registry is unavailable')
       const agent = agents.get(sessionId as SessionId)
       if (agent === undefined) return rpcFailure('rewind/session-not-found', `session ${sessionId} is not attached`)
       const session = agent.session
@@ -1396,15 +1398,26 @@ export function apply(ctx: Context, config?: Config): void {
     })()
   }, { global: true })
 
-  ctx.inject(['agents', 'connection'], (scope) => {
-    const agents = scope.get('agents') as AgentLookup | undefined
-    const connection = scope.get('connection') as RewindRpcHost | undefined
-    if (agents === undefined || connection === undefined) return
-    const dispose = connection.rpc.handle(
-      REWIND_RPC_CHANNEL,
-      createRewindRpcHandler(store, agents, () => isFileCheckpointingEnabled(config)),
-    )
-    scope.effect(() => () => { void dispose() }, 'dsh-rewind RPC channel')
+  // `rpc.handle` registers its route inside an effect that re-reads
+  // `owner.webServer`; that read loses the inject set on a plugin-scoped
+  // owner, so register from the root context and dispose the route with this
+  // plugin instead. See docs/compat/audit.md#u10.
+  ctx.inject(['connection'], (scope) => {
+    try {
+      const connection = (scope.root as unknown as { readonly connection?: RewindRpcHost }).connection
+      if (connection === undefined) return
+      const dispose = connection.rpc.handle(
+        REWIND_RPC_CHANNEL,
+        createRewindRpcHandler(
+          store,
+          () => scope.get('agents') as AgentLookup | undefined,
+          () => isFileCheckpointingEnabled(config),
+        ),
+      )
+      scope.effect(() => dispose, 'dsh-rewind RPC channel')
+    } catch (error) {
+      ctx.logger.warn(`[dsh-rewind] RPC channel registration failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
   })
 
   ctx.inject(['fs', 'workingDirectory'], (scope) => {

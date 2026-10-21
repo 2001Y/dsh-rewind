@@ -131,6 +131,15 @@ filter, so the `@deepseek-ai/schemastery` peer floor is the real availability gu
 `.volatile()`: an older shadowing copy fails the top-level `Config` evaluation before the
 plugin loads. **Stance:** keep the floor; never treat the range as enforcement.
 
+### U10 — generic RPC route registration fails from a plugin scope
+
+`connection.rpc.handle` registers its route inside
+`owner.effect(() => owner.webServer.register(route))`; a plugin-scoped `owner` loses the
+`webServer` inject inside that effect (`cannot get property "webServer" without inject`).
+**Ask:** capture `webServer` outside the effect so RPC/Fetch registration works from a normal
+plugin scope. **Stance:** register from the root context and dispose with the plugin; remove
+the shim when upstream fixes it.
+
 ## Coverage gaps
 
 - **Real browser rendering replay**: the contract's logic layer is covered in tests, but DOM
@@ -146,6 +155,9 @@ plugin loads. **Stance:** keep the floor; never treat the range as enforcement.
 - **Real LLM streaming / auto title (L2 stubbed)**, and
   **`session-reference`'s `SessionReferenceResolver.prepare`** (needs a full session-query
   service; its data base is already covered by the G1 probe).
+- **Real Connection route registration**: `verify-host` uses a fake `connection` and calls the
+  RPC handler directly, so the real `webServer` registration path is verified manually on a
+  live Web host, not in CI.
 
 ## Deliberate semantics (no entry kept)
 

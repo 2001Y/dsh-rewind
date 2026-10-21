@@ -8,9 +8,9 @@
  * so the plugin imports no conversation UI types and survives harness drift.
  * The command decoration (`ctx.commandUi.decorate`) makes a bare `/rewind` (or
  * its alias `/undo`) open the harness's own popupSelect instead of executing;
- * the parameterized `@<seq>` / `preview` forms stay internal channels the
- * button and the popover drive. The exported contract is specified in
- * `docs/contract/client-contract.md`.
+ * the parameterized `@<seq>` form stays the execution channel, while the
+ * popover's impact and candidate reads go over the host RPC channel. The
+ * exported contract is specified in `docs/contract/client-contract.md`.
  *
  * @module dsh-rewind/client
  */
@@ -31,15 +31,15 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // label the ui-session plugin contributes to `SessionReferenceSourceMap`).
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import {
-  rewindCandidatesFromHostText,
   rewindCandidatesOfChat,
   rewindOptionsFromCandidates,
   type CandidateChat,
   type RewindCandidate,
 } from './candidates.ts'
-import { closePopover, openPopover, knownCommandSeqs, waitForCommand, registerComposerFocuser } from './popover.ts'
+import { closePopover, openPopover, registerPreviewCall, registerComposerFocuser } from './popover.ts'
 import { createRewindBridge, isRewindInertSession, runRewindAndFill, writeComposer, type SlotsLike } from './portals.tsx'
-import { ENGINE_COMMAND, chatSnapshotOf, resolveChatWatch, isCandidateCommand, type ChatOf, type ChatWatch, type MessageImageRef } from './hidden.ts'
+import { chatSnapshotOf, resolveChatWatch, type ChatOf, type ChatWatch, type MessageImageRef } from './hidden.ts'
+import { candidatesOverRpc, previewOverRpc, type ConnectionLike } from './host-rpc.ts'
 import { rewindLog } from './log.ts'
 import { BUILD_HASH, PLUGIN_PACKAGE, PLUGIN_VERSION } from './build-info.ts'
 import { en, zh } from './locales.ts'
@@ -62,7 +62,10 @@ export const name = 'dsh-rewind'
 // it, but the configuration card is addressed through it, and the web profile
 // always composes `ui-settings` (the same dependency the official settings
 // pages declare).
-export const inject = ['slots', 'sessions', 'locale', 'commandUi', 'configForms']
+//
+// `connection` carries the read-only host queries (impact preview and the
+// candidate list); both must not travel over the command channel.
+export const inject = ['slots', 'sessions', 'locale', 'commandUi', 'configForms', 'connection']
 
 const NS = 'rewind'
 
@@ -136,6 +139,10 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(function* () {
     yield ctx.locale.register(NS, { zh, en })
     const t = ctx.locale.bind(NS)
+
+    const connection = ctx.get('connection') as ConnectionLike | undefined
+    registerPreviewCall((sessionId, seq) => previewOverRpc(connection, sessionId, seq))
+    yield () => { registerPreviewCall(null) }
 
     const style = document.createElement('style')
     // The loader row id (the harness matches its owned-style fallback by
@@ -381,20 +388,13 @@ export function apply(ctx: ClientContext): void {
     }
 
     /**
-     * Fetch the FULL candidate list from the host through the internal
-     * `__candidates` command. The host derives it from its complete surface +
-     * event log, so it lists every reachable rewind target — not just the
-     * already-loaded history window. Returns undefined when the command was
-     * not matched or never settled.
+     * Fetch the FULL candidate list over RPC. The host derives it from its
+     * complete surface + event log, so it lists every reachable rewind target —
+     * not just the already-loaded history window. Returns undefined when the
+     * query fails.
      */
-    const fetchHostCandidates = async (face: SessionFace, chatOf: ChatOf): Promise<readonly RewindCandidate[] | undefined> => {
-      const known = knownCommandSeqs(face, chatOf, node => isCandidateCommand(node))
-      const result = await face.command(`/${ENGINE_COMMAND} __candidates`)
-      if (!result.ok || result.value?.matched !== true) return undefined
-      const outcome = await waitForCommand(face, chatOf, node => isCandidateCommand(node) && !known.has(node.seq), 8000, cb => watchChat(face.sessionId, cb))
-      if (outcome === null || outcome.kind !== 'success' || outcome.text === undefined) return undefined
-      return rewindCandidatesFromHostText(outcome.text)
-    }
+    const fetchHostCandidates = async (face: SessionFace): Promise<readonly RewindCandidate[] | undefined> =>
+      candidatesOverRpc(connection, face.sessionId)
 
     // Cache the last-fetched candidate list per session: `options` fills it,
     // `onSelect` reads it to resolve the picked seq's time/preview without a
@@ -420,7 +420,7 @@ export function apply(ctx: ClientContext): void {
         options: async session => {
           const face = sessionOf(session.sessionId)
           if (face === undefined) return []
-          const candidates = await fetchHostCandidates(face, chatOf)
+          const candidates = await fetchHostCandidates(face)
           if (candidates !== undefined) hostCandidatesCache.set(session.sessionId, candidates)
           return candidates === undefined ? [] : rewindOptionsFromCandidates(candidates, t)
         },
@@ -433,8 +433,6 @@ export function apply(ctx: ClientContext): void {
           if (candidate === undefined) return
           openPopover({
             session: face,
-            chatOf,
-            watchChat,
             seq: candidate.seq,
             time: candidate.time,
             preview: candidate.preview,

@@ -17,7 +17,7 @@
  *     under the turn's anchor seq;
  *  5. a denied call never commits (no phantom entry in the store);
  *  6. relative file paths resolve against the session cwd;
- *  7. `/rewind preview @<seq> both` reports the checkpoint impact;
+ *  7. the `preview` RPC endpoint reports the checkpoint impact;
  *  8. `/rewind @<seq> both` restores the real file to its pre-edit content
  *     and deletes files created after the target;
  *  9. a running agent is force-stopped before the rewind (not refused);
@@ -189,9 +189,12 @@ function makeInbox(initial = []) {
   }
 }
 
+/** Agents by session id: the RPC handler resolves the live session through this. */
+const agentRegistry = new Map()
+
 /** Minimal Agent double carrying the fields executeRewind reads today. */
 function makeAgent(id, session, status = 'idle', inbox = makeInbox()) {
-  return {
+  const agent = {
     id, session, status, inbox,
     options: { provider: 'test', model: 'test-model' },
     // Manual compaction requires an idle agent whose maintenance task runs
@@ -201,6 +204,8 @@ function makeAgent(id, session, status = 'idle', inbox = makeInbox()) {
       return task(aborted())
     },
   }
+  agentRegistry.set(id, agent)
+  return agent
 }
 
 /**
@@ -257,6 +262,18 @@ ctx.provide('commands', {
 })
 ctx.provide('fs', fs)
 ctx.provide('workingDirectory', fakeWorkingDirectory)
+// Live-agent lookup and the generic RPC registration seat the plugin uses for
+// its windowed queries.
+const rpcHandlers = new Map()
+ctx.provide('agents', { get: id => agentRegistry.get(id) })
+ctx.provide('connection', {
+  rpc: {
+    handle: (channel, handler) => {
+      rpcHandlers.set(channel, handler)
+      return async () => { rpcHandlers.delete(channel) }
+    },
+  },
+})
 // The entry-write port the plugin's cleanup store addresses; the policy itself
 // resolves through the config the plugin is mounted with.
 ctx.provide('settings', fakeSettings)
@@ -277,6 +294,31 @@ applyRewind(ctx, resolvedConfig)
 applyCommandCompact(ctx)
 
 const call = (agentOf, rawInput) => commands.get('rewind').handler({ commandId: CommandId('cid'), agent: agentOf, rawInput, signal: aborted() })
+
+/** Drive one rewind RPC endpoint the way the browser client does. */
+const rpc = (agentOf, endpoint, payload) => {
+  const handler = rpcHandlers.get('/dsh-rewind')
+  if (handler === undefined) throw new Error('rewind RPC channel is not registered')
+  return handler(endpoint, payload, aborted(), {})
+}
+
+/** The structured impact preview; `error` carries the host reason. */
+const previewOf = async (agentOf, seq) => {
+  const result = await rpc(agentOf, 'preview', { sessionId: agentOf.id, seq })
+  return result.ok
+    ? { kind: 'success', value: result.value }
+    : { kind: 'error', text: result.error.message }
+}
+
+/** Files in a successful preview (empty for an error). */
+const filesOf = preview => preview.kind === 'success' ? preview.value.files : []
+
+/** Whether a successful preview contains a path, optionally filtered by action. */
+const hasFile = (preview, path, action) => filesOf(preview)
+  .some(file => file.path === path && (action === undefined || file.action === action))
+
+/** Paths the cap left uncovered. */
+const uncoveredOf = preview => preview.kind === 'success' ? preview.value.uncovered.map(item => item.path) : []
 
 /**
  * Simulate one tracked tool call: before-capture, dispatch writes the file,
@@ -369,9 +411,13 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   await runWrite(agent, 'c2', createdPath, 'new') // file did not exist: before-capture = created
   await writeFile(aPath, 'v3', 'utf8') // later edit lands after the backups
 
-  const preview = await call(agent, `preview @${anchorSeq} both`)
-  check('preview reports the file impact', preview.kind === 'success' && preview.text.includes(aPath) && /impact=2/.test(preview.text), preview.text)
-  check('preview carries the machine restore/delete lines', preview.kind === 'success' && preview.text.includes(`restore:${aPath}`), preview.text)
+  const preview = await previewOf(agent, anchorSeq)
+  check('preview reports the file impact', preview.kind === 'success' && hasFile(preview, aPath) && filesOf(preview).length === 2, JSON.stringify(preview))
+  check('preview carries the restore/delete actions', hasFile(preview, aPath, 'restore'), JSON.stringify(preview))
+  const candidates = await rpc(agent, 'candidates', { sessionId: agent.id })
+  check('candidates RPC lists reachable user messages',
+    candidates.ok === true && candidates.value.candidates.some(candidate => candidate.seq === anchorSeq),
+    JSON.stringify(candidates))
 
   // The both-mode restore must re-sync the harness fs-observation policy:
   // record every fs/observed emission around the restore, then assert the
@@ -411,8 +457,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   await runWrite(agent, 'bin1', binPath, 'replaced by a tracked edit')
   await writeFile(binPath, Buffer.from([0x00, 0x01, 0x02])) // later out-of-band change
 
-  const binPreview = await call(agent, `preview @${binAnchor} both`)
-  check('binary preview reports the file impact', binPreview.kind === 'success' && binPreview.text.includes(binPath), binPreview.text)
+  const binPreview = await previewOf(agent, binAnchor)
+  check('binary preview reports the file impact', binPreview.kind === 'success' && hasFile(binPreview, binPath), JSON.stringify(binPreview))
   const binBoth = await call(agent, `@${binAnchor} both`)
   check('binary rewind both succeeds', binBoth.kind === 'success' && binBoth.text.includes('restored 1 file(s)'), binBoth.text)
   const restoredBytes = await readFile(binPath)
@@ -466,7 +512,7 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   try {
     // Preview first: the rewind below withdraws the target from the surface,
     // so it can no longer be previewed afterwards.
-    const preview = await call(agent, `preview @${futureAnchor} both`)
+    const preview = await previewOf(agent, futureAnchor)
     check('newer store preview reports the refusal instead of "no changes"', preview.kind === 'error' && /newer store format/.test(preview.text), preview.text)
     const result = await call(agent, `@${futureAnchor} both`)
     check('newer store fails the file restore closed, rewind still succeeds', result.kind === 'success' && /newer store format/.test(result.text), result.text)
@@ -522,8 +568,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   // A file first seen already over the cap was never recorded, so it has no
   // history to report: `uncoveredPaths` derives from the RECORD, and this path
   // is not in it. It must simply never be touched by a rewind.
-  const capPreview = await call(agent, `preview @${capAnchor} both`)
-  check('preview does not list a never-recorded over-cap file', capPreview.kind === 'success' && !capPreview.text.includes(bigPath), capPreview.text)
+  const capPreview = await previewOf(agent, capAnchor)
+  check('preview does not list a never-recorded over-cap file', capPreview.kind === 'success' && !hasFile(capPreview, bigPath), JSON.stringify(capPreview))
 
   const capResult = await call(agent, `@${capAnchor} both`)
   check('rewind leaves the never-recorded over-cap file untouched', capResult.kind === 'success' && (await readFile(bigPath, 'utf8')).length === CAP_BYTES * 3, capResult.text)
@@ -538,8 +584,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   await runWrite(agent, 'grew1', grewPath, 'small content')
   await writeFile(grewPath, 'W'.repeat(CAP_BYTES * 2), 'utf8')
 
-  const grewPreview = await call(agent, `preview @${grewAnchor} both`)
-  check('preview names a recorded path that grew past the cap', grewPreview.kind === 'success' && grewPreview.text.includes(grewPath) && /backup limit/.test(grewPreview.text), grewPreview.text)
+  const grewPreview = await previewOf(agent, grewAnchor)
+  check('preview names a recorded path that grew past the cap', grewPreview.kind === 'success' && uncoveredOf(grewPreview).includes(grewPath), JSON.stringify(grewPreview))
 
   const grewResult = await call(agent, `@${grewAnchor} both`)
   check('rewind refuses the grown file and names the reason', grewResult.kind === 'success' && (await readFile(grewPath, 'utf8')).length === CAP_BYTES * 2 && /not restored/.test(grewResult.text), grewResult.text)
@@ -628,10 +674,10 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
     fs.stat = originalStat
   }
 
-  const remotePreview = await call(remoteAgent, `preview @${remoteAnchor} both`)
+  const remotePreview = await previewOf(remoteAgent, remoteAnchor)
   check('a service-present file the host cannot read is not recorded as a creation',
-    remotePreview.kind === 'success' && !remotePreview.text.includes(`delete:${remotePath}`) && /impact=0/.test(remotePreview.text),
-    remotePreview.text)
+    remotePreview.kind === 'success' && !hasFile(remotePreview, remotePath, 'delete') && filesOf(remotePreview).length === 0,
+    JSON.stringify(remotePreview))
   await rm(remotePath, { force: true })
 }
 
@@ -654,8 +700,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   await ctx.waterfall('tools/post-execute', edit, { isError: false, content: [] }, async () => ({ kind: 'accept' }))
   await writeFile(editPath, 'edit-later', 'utf8')
 
-  const editPreview = await call(editAgent, `preview @${editAnchor} both`)
-  check('edit mutations are captured', editPreview.kind === 'success' && editPreview.text.includes(editPath), editPreview.text)
+  const editPreview = await previewOf(editAgent, editAnchor)
+  check('edit mutations are captured', editPreview.kind === 'success' && hasFile(editPreview, editPath), JSON.stringify(editPreview))
   const editBoth = await call(editAgent, `@${editAnchor} both`)
   check('edit is restored', editBoth.kind === 'success' && (await readFile(editPath, 'utf8')) === 'edit-before', `content=${await readFile(editPath, 'utf8')}`)
 }
@@ -675,8 +721,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
     const offDir = join(snapRoot, offSession.id)
     const offMembers = await readdir(offDir).then(() => 'present', () => 'missing')
     check('checkpointing off records nothing', offMembers === 'missing', offMembers)
-    const offPreview = await call(offAgent, `preview @${offAnchor} both`)
-    check('preview reports checkpointing off', offPreview.kind === 'success' && offPreview.text.includes('backup=off'), offPreview.text)
+    const offPreview = await previewOf(offAgent, offAnchor)
+    check('preview reports checkpointing off', offPreview.kind === 'success' && offPreview.value.backupOff === true, JSON.stringify(offPreview))
     const offBoth = await call(offAgent, `@${offAnchor} both`)
     check('both reports the incomplete restore', offBoth.kind === 'success' && /snapshot backups are off/i.test(offBoth.text), offBoth.text)
   } finally {
@@ -693,8 +739,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   updateVolatile(resolvedConfig.fileCheckpointingEnabled, createVolatile(false))
   try {
     await writeFile(keepPath, 'keep-off-write', 'utf8')
-    const keepPreview = await call(keepAgent, `preview @${keepAnchor} both`)
-    check('old checkpoint is still previewed while off', keepPreview.kind === 'success' && keepPreview.text.includes(`restore:${keepPath}`) && keepPreview.text.includes('backup=off'), keepPreview.text)
+    const keepPreview = await previewOf(keepAgent, keepAnchor)
+    check('old checkpoint is still previewed while off', keepPreview.kind === 'success' && hasFile(keepPreview, keepPath, 'restore') && keepPreview.value.backupOff === true, JSON.stringify(keepPreview))
     const keepBoth = await call(keepAgent, `@${keepAnchor} both`)
     check('old checkpoint still restores while off', keepBoth.kind === 'success' && (await readFile(keepPath, 'utf8')) === 'keep-before', `content=${await readFile(keepPath, 'utf8')}`)
   } finally {
@@ -766,7 +812,7 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   await writeFile(join(outside, 'created.txt'), 'pin-decoy-created', 'utf8')
   await symlink(outside, dir, 'dir')
 
-  const preview = await call(pinAgent, `preview @${pinAnchor} both`)
+  const preview = await previewOf(pinAgent, pinAnchor)
   const both = await call(pinAgent, `@${pinAnchor} both`)
   const outsideDecoy = await readOrMissing(join(outside, 'f.txt'))
   const movedOriginal = await readOrMissing(join(moved, 'f.txt'))
@@ -778,8 +824,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
     outsideCreated === 'pin-decoy-created',
     `outside=${outsideCreated}`)
   check('a repointed ancestor is reported, not silently restored',
-    preview.kind === 'success' && /impact=0/.test(preview.text) && both.kind === 'success' && /skip|fail/.test(both.text),
-    `${preview.text} | ${both.text}`)
+    preview.kind === 'success' && filesOf(preview).length === 0 && both.kind === 'success' && /skip|fail/.test(both.text),
+    `${JSON.stringify(preview)} | ${both.text}`)
 }
 
 // 4k. the pin must never cause a false skip for a STABLE symlinked ancestor (a
@@ -854,8 +900,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   const exec = { callId: 'c3', name: 'write', arguments: { file_path: deniedPath, content: 'denied write' }, agent: deniedAgent, signal: aborted() }
   await ctx.waterfall('tools/pre-execute', exec, async () => ({ kind: 'deny', reason: 'no' }))
   await ctx.waterfall('tools/post-execute', exec, { isError: true, error: { message: 'denied', info: { name: 'x', code: 'y' } }, content: [] }, async () => ({ kind: 'accept' }))
-  const preview = await call(deniedAgent, `preview @${anchorSeq} both`)
-  check('denied call is not in the impact list', preview.kind === 'success' && !preview.text.includes(deniedPath), preview.text)
+  const preview = await previewOf(deniedAgent, anchorSeq)
+  check('denied call is not in the impact list', preview.kind === 'success' && !hasFile(preview, deniedPath), JSON.stringify(preview))
 
   // A capture that DID stage bytes but whose tool call then failed must release
   // the staged copy: no entry, no `.pending/` leak (discardCapture).
@@ -880,8 +926,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   cwdSession.append('user/message', user('relative question'), { surfaceOp: 'append' })
   await runWrite(cwdAgent, 'c4', 'rel.txt', 'relative new') // relative path
 
-  const preview = await call(cwdAgent, 'preview @4 both')
-  check('relative path resolved via session cwd', preview.kind === 'success' && preview.text.includes(relPath), preview.text)
+  const preview = await previewOf(cwdAgent, 4)
+  check('relative path resolved via session cwd', preview.kind === 'success' && hasFile(preview, relPath), JSON.stringify(preview))
   const both = await call(cwdAgent, '@4 both')
   check('both restores cwd-resolved file', both.kind === 'success' && await readFile(relPath, 'utf8') === 'relative original', both.text)
 
@@ -895,9 +941,9 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   const afterCd = cwdSession.append('user/message', user('after a cd'), { surfaceOp: 'append' })
   await runWrite(cwdAgent, 'c5', 'moved.txt', 'moved new') // relative, after the cd
 
-  const movedPreview = await call(cwdAgent, `preview @${afterCd.seq} both`)
+  const movedPreview = await previewOf(cwdAgent, afterCd.seq)
   check('relative path resolved via the working-directory service',
-    movedPreview.kind === 'success' && movedPreview.text.includes(movedPath), movedPreview.text)
+    movedPreview.kind === 'success' && hasFile(movedPreview, movedPath), JSON.stringify(movedPreview))
   const movedBoth = await call(cwdAgent, `@${afterCd.seq} both`)
   check('both restores the file under the changed directory',
     movedBoth.kind === 'success' && await readFile(movedPath, 'utf8') === 'moved original', movedBoth.text)
@@ -908,8 +954,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
 {
   const cleanSession = buildSession('verify-norec')
   const cleanAgent = makeAgent(cleanSession.id, cleanSession)
-  const previewResult = await call(cleanAgent, 'preview @2 both')
-  check('preview with no entries reports no changes', previewResult.kind === 'success' && previewResult.text.includes('No restorable changes after the target.') && /impact=0/.test(previewResult.text), previewResult.text)
+  const previewResult = await previewOf(cleanAgent, 2)
+  check('preview with no entries reports no changes', previewResult.kind === 'success' && filesOf(previewResult).length === 0, JSON.stringify(previewResult))
 }
 
 // 8. a running agent is force-stopped before the rewind (not refused)
@@ -970,8 +1016,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   // The main session's own rewinds consumed seq 2/4/5; seq 0 (the first user
   // message) is still on its surface and covers every backup anchored at or
   // after it.
-  const preview = await call(agent, 'preview @0 both')
-  check('subagent edit is not tracked', preview.kind === 'success' && !preview.text.includes(subFile), preview.text)
+  const preview = await previewOf(agent, 0)
+  check('subagent edit is not tracked', preview.kind === 'success' && !hasFile(preview, subFile), JSON.stringify(preview))
   // And the snapshot root holds no subagent session directory.
   const subSessionDir = join(snapRoot, subSession.id)
   let subDirExists = false
@@ -1190,8 +1236,8 @@ check('log stays append-only (5 events: 4 + user/message marker)', paramSession.
   check('chat rewind works after the data dir is deleted', chatResult.kind === 'success', chatResult.text)
   const previewSession = buildSession('verify-wipe-preview')
   const previewAgent = makeAgent(previewSession.id, previewSession)
-  const preview = await call(previewAgent, 'preview @2 both')
-  check('both preview reports no restorable changes after the wipe', preview.kind === 'success' && /No restorable changes/.test(preview.text), preview.text)
+  const preview = await previewOf(previewAgent, 2)
+  check('both preview reports no restorable changes after the wipe', preview.kind === 'success' && filesOf(preview).length === 0, JSON.stringify(preview))
 }
 
 // 17. Rewinding /plan text undoes only the message, never the plan-mode state.

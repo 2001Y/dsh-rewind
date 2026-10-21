@@ -23,8 +23,8 @@ describe('host locale dictionaries', () => {
   })
 
   it('interpolates all params and leaves unknown placeholders untouched', () => {
-    const rendered = translate('en', 'plan.affects', { count: 2 })
-    expect(rendered).toBe('Affects 2 file(s):')
+    const rendered = translate('en', 'failures.item', { path: 'a.ts', message: 'boom' })
+    expect(rendered).toBe('a.ts (boom)')
     // An unknown param name is ignored; an unprovided placeholder stays.
     const restored = translate('en', 'success', { targetSeq: 9, restore: '' })
     expect(restored).toContain('Withdrawn seq 9')

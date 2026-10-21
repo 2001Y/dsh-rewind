@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
-  formatCandidate, formatCandidateList, listRewindCandidates, messagePreview, parseRewindTarget,
+  formatCandidate, listRewindCandidates, messagePreview, parseRewindTarget,
   planRewind, REWIND_MARKER_SOURCE, RewindError,
 } from '../src/rewind.ts'
 
@@ -147,28 +147,6 @@ describe('listRewindCandidates', () => {
     const { events, surface } = sampleLog()
     const line = formatCandidate(listRewindCandidates(events, surface)[0]!)
     expect(line).toMatch(/^1\. \d{2}:\d{2} third question$/)
-  })
-})
-
-describe('formatCandidateList', () => {
-  it('encodes an empty list as candidates=0', () => {
-    expect(formatCandidateList([])).toBe('candidates=0')
-  })
-
-  it('encodes each candidate as a tab-separated seq/time/preview line', () => {
-    const list = formatCandidateList([
-      { seq: 4, time: 240_000, preview: 'third question', index: 1 },
-      { seq: 0, time: 0, preview: 'first question', index: 2 },
-    ])
-    expect(list).toBe('candidates=2\n4\t240000\tthird question\n0\t0\tfirst question')
-  })
-
-  it('preserves newest-first order from the input candidates', () => {
-    const { events, surface } = sampleLog()
-    const text = formatCandidateList(listRewindCandidates(events, surface))
-    expect(text).toBe(
-      'candidates=3\n4\t240000\tthird question\n2\t120000\tsecond question\n0\t0\tfirst question',
-    )
   })
 })
 

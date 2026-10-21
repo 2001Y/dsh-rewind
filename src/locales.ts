@@ -15,9 +15,8 @@
  * public read the settings UI and the client's own locale runtime perform.
  *
  * The client half (`src/client/locales.ts`) owns all interactive UI copy via
- * `ctx.locale` + `t()`; the host's human text is a machine channel the client
- * renders through machine tokens (`impact=<n>`, `args` @seq), never by parsing
- * host prose.
+ * `ctx.locale` + `t()`; the client never parses host prose (the popover reads
+ * travel over the RPC channel).
  *
  * DSH localizes only its OWN command descriptions via the client locale — a
  * closed `HOST_FACES` allowlist; third-party plugin descriptions are
@@ -51,15 +50,8 @@ export function preferredLocale(preference: unknown): HostLocaleId {
 
 /** English dictionary — the key-set source of truth (neutral default). */
 export const en = {
-  'plan.rewinding': 'Rewind to seq {targetSeq}, removing {count} node(s) from the model context (conversation log kept).',
-  'plan.affects': 'Affects {count} file(s):',
-  'plan.restore': 'restore {path}',
-  'plan.delete': 'delete {path}',
-  'plan.noChanges': 'No restorable changes after the target.',
-  'plan.backupOff': 'Snapshot backups are off; this restore may be incomplete.',
   'plan.skip': '  not restored: {path} ({reason})',
   'skipReason.oversized': 'over the {limit} backup limit, so the recorded state predates untracked edits',
-  'uncovered.header': '{count} tracked file(s) exceed the {limit} backup limit and are not covered:',
   'error.invalidTarget': 'Cannot parse target "{raw}" (expected <index> or @<seq>)',
   'sep.list': ', ',
   'sep.clause': '; ',
@@ -109,15 +101,8 @@ export type HostKey = keyof typeof en
 
 /** Chinese dictionary, checked complete against the en key set. */
 export const zh: Record<HostKey, string> = {
-  'plan.rewinding': '将回退到 seq {targetSeq}，从模型上下文移除 {count} 个节点（对话日志保留）。',
-  'plan.affects': '将影响 {count} 个文件：',
-  'plan.restore': '还原 {path}',
-  'plan.delete': '删除 {path}',
-  'plan.noChanges': '目标之后没有需要还原的变更。',
-  'plan.backupOff': '快照备份已关闭；本次还原可能不充分。',
   'plan.skip': '  未还原：{path}（{reason}）',
   'skipReason.oversized': '已超过 {limit} 的备份上限，记录的状态早于未被跟踪的修改',
-  'uncovered.header': '{count} 个已跟踪文件超过 {limit} 的备份上限，未纳入记录：',
   'error.invalidTarget': '无法解析目标 "{raw}"（应为 <序号> 或 @<seq>）',
   'sep.list': '、',
   'sep.clause': '；',

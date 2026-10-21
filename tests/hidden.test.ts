@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { ENGINE_COMMAND, LEGACY_ENGINE_COMMAND, hasBackupDisabled, hasFileImpact, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, targetSeqOfArgs, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
+import { ENGINE_COMMAND, LEGACY_ENGINE_COMMAND, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, targetSeqOfArgs, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
 
 /** A chat view node for one row; only fields the hiding logic reads are real. */
 function viewNode(key: string, kind: string, anchorSeq: number, data: unknown = null, location?: unknown): ChatConversationViewNode {
@@ -271,32 +271,6 @@ describe('isExecutedRewindCommand (composer refill waits only for THIS page\'s r
       kind: 'command', seq: 6, time: 0, commandId: 'cid', name: 'approval-edit', args: 'on', outcome: { kind: 'success', text: 'ok' },
     } as unknown as CommandNode)
     expect(isExecutedRewindCommand(other.data as CommandNode, 5)).toBe(false)
-  })
-})
-
-describe('hasFileImpact (code-restore option availability)', () => {
-  it('uses the machine impact token when present', () => {
-    expect(hasFileImpact('Rewind to seq 5.\nAffects 2 file(s):\n  restore /a\nimpact=2')).toBe(true)
-    expect(hasFileImpact('Rewind to seq 5.\nNo restorable changes after the target.\nimpact=0')).toBe(false)
-  })
-
-  it('treats text without a machine token as no changes (never guesses from human copy)', () => {
-    expect(hasFileImpact('Rewind to seq 5.\nAffects 1 file(s):\n  restore /a')).toBe(false)
-    expect(hasFileImpact('Rewind to seq 5.\nNo restorable changes after the target.')).toBe(false)
-  })
-
-  it('degrades to always-show for unknown outcomes', () => {
-    expect(hasFileImpact(undefined)).toBe(true)
-    expect(hasFileImpact('')).toBe(false) // empty text: no changes reported
-  })
-})
-
-describe('hasBackupDisabled (checkpointing-off note)', () => {
-  it('reads the machine trailer as a whole line', () => {
-    expect(hasBackupDisabled('Rewind to seq 5.\nimpact=1\nrestore:/a\nbackup=off')).toBe(true)
-    expect(hasBackupDisabled('backup=off')).toBe(true)
-    expect(hasBackupDisabled('note: backup=offline now')).toBe(false)
-    expect(hasBackupDisabled(undefined)).toBe(false)
   })
 })
 

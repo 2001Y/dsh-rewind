@@ -1,8 +1,8 @@
 /**
  * The rewind mode-selection popover (plain DOM, no React). Step two of the
  * interaction: the target is already fixed (the clicked message); the popover
- * offers the two modes. Choosing "both" first fetches the impact list through
- * the engine channel's `preview @seq both` command and shows it before confirming.
+ * offers the two modes. Choosing "both" fetches the impact list over the host
+ * RPC channel and shows it before confirming.
  *
  * Keyboard: ↑/↓ move focus across the step's ACTION buttons only (the two
  * modes, or the confirm button on the impact step), Enter activates the
@@ -16,8 +16,8 @@
 
 import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { ENGINE_COMMAND, ENGINE_COMMANDS, hasBackupDisabled, hasFileImpact, type ChatOf, type ChatWatch, type HiddenChat } from './hidden.ts'
-import { rewindLog } from './log.ts'
+import { type ChatOf, type ChatWatch, type HiddenChat } from './hidden.ts'
+import type { PreviewCall, PreviewOutcome } from './host-rpc.ts'
 import type { RewindKey } from './locales.ts'
 import { CLASS } from './styles.ts'
 
@@ -34,18 +34,6 @@ export interface PopoverOptions {
   /** Pending variant: executed after the retract confirm closes the popover. */
   readonly onRetract?: () => void
   readonly preview: string
-  /**
-   * Chat reader on the `uiConversation` "chat" view: the durable
-   * variant's command probes scan the chat through it. Unused by the
-   * pending-retract variant.
-   */
-  readonly chatOf: ChatOf
-  /**
-   * Subscribe to one session's live chat-update signal, so a probe waiting on
-   * a command's chat node can be woken when the chat snapshot changes. Passed
-   * straight through to `waitForCommand`.
-   */
-  readonly watchChat: ChatWatch
   /** The button that opened the popover (outside-click ignore target). */
   readonly anchor: HTMLElement
   readonly t: Translate
@@ -106,23 +94,6 @@ function formatTarget(t: Translate, seq: number, time: number, preview: string):
   return `seq ${seq} · ${hh}:${mm} · ${previewText}`
 }
 
-/**
- * Parse the host's machine-readable impact trailer from a preview outcome text
- * (the trailing lines of formatPlan in src/index.ts): `impact=<n>` plus one
- * `restore:<path>` / `delete:<path>` line per file. Locale-independent — the
- * human copy above the trailer is ignored; the popover renders its own
- * localized list from these tokens.
- */
-function parseImpactList(text: string): { restores: string[]; deletes: string[] } {
-  const restores: string[] = []
-  const deletes: string[] = []
-  for (const line of text.split('\n')) {
-    if (line.startsWith('restore:')) restores.push(line.slice('restore:'.length))
-    else if (line.startsWith('delete:')) deletes.push(line.slice('delete:'.length))
-  }
-  return { restores, deletes }
-}
-
 /** Find the newest rewind command node matching a predicate. */
 function findCommand(chat: HiddenChat | undefined, match: (node: CommandNode) => boolean): CommandNode | undefined {
   if (chat === undefined) return undefined
@@ -140,9 +111,8 @@ function findCommand(chat: HiddenChat | undefined, match: (node: CommandNode) =>
 /**
  * Seqs of the command nodes currently matching `match`. Sample BEFORE issuing
  * a new command of the same shape so the subsequent wait can exclude them: a
- * repeated preview/rewind of the same target must not settle on the previous
- * command's stale outcome (e.g. an older preview that found file changes,
- * after those changes were already restored).
+ * repeated rewind of the same target must not settle on the previous command's
+ * stale outcome.
  */
 export function knownCommandSeqs(session: SessionFace, chatOf: ChatOf, match: (node: CommandNode) => boolean): Set<number> {
   const known = new Set<number>()
@@ -195,53 +165,17 @@ export function waitForCommand(
   })
 }
 
-/** Outcome of a `preview` engine command, or null when it never settled. */
-type PreviewOutcome = { kind: 'success' | 'error'; text?: string } | null
+/** The registered host call; tests and the client plugin set it once. */
+let previewCall: PreviewCall | null = null
 
-/** True for this plugin's `preview @<seq> both` engine command node of one target. */
-function isPreviewFor(node: CommandNode, seq: number): boolean {
-  const args = node.args ?? ''
-  return node.name !== null && ENGINE_COMMANDS.has(node.name)
-    && args.includes('preview') && new RegExp(`(?:^|\\s)@${seq}(?=\\s|$)`).test(args)
+/** Register the host RPC preview call (null clears it on unload). */
+export function registerPreviewCall(call: PreviewCall | null): void {
+  previewCall = call
 }
 
-/**
- * Run `preview @seq both` on the engine channel and await its outcome.
- *
- * `null` means ONLY "admitted but never settled" (the outcome wait timed out).
- * An ADMISSION failure is a settled error outcome carrying the reason: the call
- * was rejected before any handler ran (e.g. `session/agent-busy` for a
- * subagent-owned identity) or no handler matched the line. Reporting those as
- * `null` left the modes step stuck on "checking file changes…" with a
- * permanently disabled code-restore entry and the cause invisible
- * (SiriLee/dsh-rewind#26).
- */
-async function previewImpact(
-  session: SessionFace,
-  chatOf: ChatOf,
-  seq: number,
-  watch: (cb: () => void) => () => void,
-): Promise<PreviewOutcome> {
-  // Exclude preview nodes that already exist: a second popover on the same
-  // message must wait for THIS command's node, not settle on the previous
-  // preview's outcome (which may predate a restore).
-  const known = knownCommandSeqs(session, chatOf, node => isPreviewFor(node, seq))
-  let result: Awaited<ReturnType<SessionFace['command']>>
-  try {
-    result = await session.command(`/${ENGINE_COMMAND} preview @${seq} both`)
-  } catch (error) {
-    rewindLog.warn('preview', `preview command threw for @${seq}`, error)
-    return { kind: 'error', text: error instanceof Error ? error.message : String(error) }
-  }
-  if (!result.ok) {
-    rewindLog.warn('preview', `preview command rejected for @${seq}`, result.error)
-    return { kind: 'error', text: `${result.error.code}: ${result.error.message}` }
-  }
-  if (result.value?.matched !== true) {
-    rewindLog.warn('preview', `preview command was not matched for @${seq}`)
-    return { kind: 'error', text: 'the rewind command is not registered on this host' }
-  }
-  return waitForCommand(session, chatOf, node => isPreviewFor(node, seq) && !known.has(node.seq), 8000, watch)
+/** Resolve one target's impact through the host RPC channel. */
+function previewImpact(sessionId: string, seq: number): Promise<PreviewOutcome> {
+  return previewCall?.(sessionId, seq) ?? Promise.resolve({ kind: 'error', text: 'host RPC is unavailable' })
 }
 
 /** Element factory helpers (kept local so no framework is involved). */
@@ -296,16 +230,13 @@ interface DurablePopoverOptions {
   readonly preview: string
   readonly anchor: HTMLElement
   readonly t: Translate
-  readonly chatOf: ChatOf
-  readonly watchChat: ChatWatch
   readonly onRewind: (mode: 'chat' | 'both') => void
 }
 
 /**
  * Render the impact step: show the impact outcome, then confirm/back.
- * Reuses the outcome already fetched when the popover opened — running a second
- * preview command here would re-run the probe and emit a second (now-hidden)
- * command row.
+ * Reuses the outcome already fetched when the popover opened — running the
+ * probe again here would repeat the disk comparison.
  */
 function renderImpactStep(root: HTMLElement, opts: DurablePopoverOptions, back: () => void, cached?: PreviewOutcome): void {
   const { session, seq, t } = opts
@@ -328,35 +259,30 @@ function renderImpactStep(root: HTMLElement, opts: DurablePopoverOptions, back: 
   focusFirst(root)
 
   void (async () => {
-    const outcome = cached ?? await previewImpact(session, opts.chatOf, seq, cb => opts.watchChat(session.sessionId, cb))
+    const outcome = cached ?? await previewImpact(session.sessionId, seq)
     if (outcome === null) {
-      impact.textContent = t('popover.impact.failed', { message: 'preview command failed or timed out' })
+      impact.textContent = t('popover.impact.failed', { message: 'preview request timed out' })
       return
     }
     if (outcome.kind === 'error') {
-      impact.textContent = t('popover.impact.failed', { message: outcome.text ?? 'unknown error' })
+      impact.textContent = t('popover.impact.failed', { message: outcome.text })
       return
     }
-    if (outcome.text === undefined) {
+    const restores = outcome.files.filter(file => file.action === 'restore').map(file => file.path)
+    const deletes = outcome.files.filter(file => file.action === 'delete').map(file => file.path)
+    if (restores.length === 0 && deletes.length === 0) {
       impact.textContent = t('popover.impact.none')
     } else {
-      // Render the localized file list from the host's machine trailer
-      // (restore:/delete: lines), never from the host's human copy.
-      const { restores, deletes } = parseImpactList(outcome.text)
-      if (restores.length === 0 && deletes.length === 0) {
-        impact.textContent = t('popover.impact.none')
+      const lines = [
+        ...restores.map(path => t('popover.impact.restore', { path })),
+        ...deletes.map(path => t('popover.impact.delete', { path })),
+      ]
+      if (outcome.backupOff) {
+        const list = document.createElement('div')
+        list.textContent = lines.join('\n')
+        impact.replaceChildren(list, el('div', CLASS.popoverNote, t('popover.backupDisabled')))
       } else {
-        const lines = [
-          ...restores.map(path => t('popover.impact.restore', { path })),
-          ...deletes.map(path => t('popover.impact.delete', { path })),
-        ]
-        if (hasBackupDisabled(outcome.text)) {
-          const list = document.createElement('div')
-          list.textContent = lines.join('\n')
-          impact.replaceChildren(list, el('div', CLASS.popoverNote, t('popover.backupDisabled')))
-        } else {
-          impact.textContent = lines.join('\n')
-        }
+        impact.textContent = lines.join('\n')
       }
     }
     confirm.disabled = false
@@ -496,11 +422,11 @@ export function openPopover(opts: PopoverOptions): void {
     openRetractPopover(opts)
     return
   }
-  const { session, seq, time, preview, anchor, t, chatOf } = opts
+  const { session, seq, time, preview, anchor, t } = opts
   const onRewind = opts.onRewind
   if (seq === undefined || time === undefined || onRewind === undefined) return
   // Narrowed durable identity: the pending variant never reaches this flow.
-  const durableOpts: DurablePopoverOptions = { session, seq, time, preview, anchor, t, chatOf, watchChat: opts.watchChat, onRewind }
+  const durableOpts: DurablePopoverOptions = { session, seq, time, preview, anchor, t, onRewind }
 
   const root = el('div', CLASS.popover)
   root.setAttribute('role', 'dialog')
@@ -513,7 +439,7 @@ export function openPopover(opts: PopoverOptions): void {
     | { state: 'noChanges' }
     | { state: 'error'; message: string }
   let bothState: BothState = { state: 'loading' }
-  /** Impact outcome fetched at open; reused by the both-step (no second command row). */
+  /** Impact outcome fetched at open; reused by the both-step. */
   let impactOutcome: PreviewOutcome = null
 
   /** Current step: Esc acts as cancel on the modes step, as back on impact. */
@@ -600,15 +526,15 @@ export function openPopover(opts: PopoverOptions): void {
   // admission, unmatched line, never-settled wait) becomes the error state that
   // shows the reason and hides the entry — never a step stuck on "checking…".
   void (async () => {
-    const outcome = await previewImpact(session, chatOf, seq, cb => opts.watchChat(session.sessionId, cb))
+    const outcome = await previewImpact(session.sessionId, seq)
     impactOutcome = outcome
     if (outcome !== null && outcome.kind === 'success') {
-      bothState = { state: hasFileImpact(outcome.text) ? 'hasChanges' : 'noChanges' }
+      bothState = { state: outcome.files.length > 0 ? 'hasChanges' : 'noChanges' }
     } else {
       // Surface the reason (host rejection — e.g. "no longer in the model
       // context (shadowed by compaction)" — or a never-settled wait) instead
       // of leaving the modes step stuck with a permanently disabled entry.
-      bothState = { state: 'error', message: outcome?.text ?? 'preview command timed out' }
+      bothState = { state: 'error', message: outcome?.kind === 'error' ? outcome.text : 'preview request timed out' }
     }
     renderModes()
     shell.position()

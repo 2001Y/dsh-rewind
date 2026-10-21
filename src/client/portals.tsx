@@ -293,8 +293,8 @@ export async function runRewindAndFill(
     return
   }
   // The executed rewind lands as a CommandNode with a marker-carrying
-  // success outcome; wait for exactly that (longer than the preview wait:
-  // a running turn is cancelled first, which can take seconds).
+  // success outcome; wait for exactly that (longer than the preview RPC
+  // timeout: a running turn is cancelled first, which can take seconds).
   let outcome: Awaited<ReturnType<typeof waitForCommand>>
   try {
     outcome = await waitForCommand(session, chatOf, node => isExecutedRewindCommand(node, seq) && !known.has(node.seq), 20_000, cb => watchChat(session.sessionId, cb))
@@ -941,8 +941,6 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
           target={target}
           sessionId={sessionId}
           sessionOf={sessionOf}
-          chatOf={chatOf}
-          watchChat={watchChat}
           setComposerText={setComposerText}
           t={t}
         />
@@ -993,8 +991,6 @@ function RewindButton({ target, sessionId, sessionOf, chatOf, watchChat, isMainV
     if (node === undefined) return
     openPopover({
       session,
-      chatOf,
-      watchChat,
       seq: node.seq,
       time: node.time,
       preview: messagePreviewOf(node),
@@ -1088,23 +1084,18 @@ interface RetractButtonProps {
   readonly target: Extract<PortalTarget, { kind: 'pending' }>
   readonly sessionId: string
   readonly sessionOf: (sessionId: string) => SessionFace | undefined
-  /** Passed through to openPopover (the shared PopoverOptions shape). */
-  readonly chatOf: ChatOf
-  readonly watchChat: ChatWatch
   readonly setComposerText: (sessionId: string, text: string) => boolean
   readonly t: Translate
 }
 
 /** The per-pending-message ↶ button (same visual family as the durable button). */
-function RetractButton({ target, sessionId, sessionOf, chatOf, watchChat, setComposerText, t }: RetractButtonProps): ReactNode {
+function RetractButton({ target, sessionId, sessionOf, setComposerText, t }: RetractButtonProps): ReactNode {
   const onClick = (event: ReactMouseEvent<HTMLButtonElement>): void => {
     event.stopPropagation()
     const session = sessionOf(sessionId)
     if (session === undefined) return
     openPopover({
       session,
-      chatOf,
-      watchChat,
       preview: target.preview,
       anchor: event.currentTarget,
       t,

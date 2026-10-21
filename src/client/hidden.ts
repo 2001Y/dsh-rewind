@@ -184,7 +184,7 @@ export function messageAttachmentsAt(chat: HiddenChat | undefined, seq: number):
 
 /**
  * Extract the rewind target seq from a `/rewind` command's structured `args`
- * (e.g. `@5 chat`, `preview @5 both`). Locale-independent — never parses the
+ * (e.g. `@5 chat`). Locale-independent — never parses the
  * host's human outcome copy.
  */
 export function targetSeqOfArgs(args: string | null | undefined): number | undefined {
@@ -202,47 +202,23 @@ export function targetSeqOfArgs(args: string | null | undefined): number | undef
  */
 export function isExecutedRewindCommand(node: CommandNode, seq: number): boolean {
   if (node.name === null || !ENGINE_COMMANDS.has(node.name) || node.outcome?.kind !== 'success') return false
-  // A success WITHOUT a marker rewound nothing (an impact preview).
+  // A success WITHOUT a marker rewound nothing (a legacy impact preview).
   if (node.outcome.sourceEventSeq === undefined) return false
   const args = node.args ?? ''
   return new RegExp(`(?:^|\\s)@${seq}(?:\\s|$)`).test(args)
 }
 
-/**
- * Whether a preview outcome reports tracked file changes — the availability
- * of the "rewind conversation and code" option (Claude Code hides the
- * code-restore options when the checkpoint has no tracked changes).
- *
- * Reads ONLY the machine-readable `impact=<n>` trailer the host appends to
- * preview text. Older host output without the trailer is treated as having no
- * changes (never guesses from human copy). Absent text (undefined) degrades to
- * always-show so a working option is never hidden on a failed probe.
- */
-export function hasFileImpact(text: string | undefined): boolean {
-  if (text === undefined) return true
-  const match = text.match(/impact=(\d+)/)
-  if (match !== null) return Number(match[1]) > 0
-  return false
-}
-
-/** Whether the preview reports that new file checkpoints are disabled. */
-export function hasBackupDisabled(text: string | undefined): boolean {
-  return text !== undefined && /(?:^|\n)backup=off(?:\n|$)/.test(text)
-}
-
-/** True when an engine command node is an impact preview — the internal probe
- * the popover runs (`preview @seq both`) to fetch the restore/delete
- * list. Previews never surface in the transcript (their result is shown in the
- * popover), so their flow node is hidden in every state. */
+/** True when an engine command node is a legacy impact preview — the old
+ * `preview @seq both` command probe. New previews travel over RPC, so this
+ * only keeps probe rows in historical sessions hidden. */
 function isPreviewCommand(command: CommandNode): boolean {
   return (command.args ?? '').includes('preview')
 }
 
 /**
- * True when an engine command node is the internal candidate-list probe
- * (`__candidates`) the popupSelect runs to fetch the FULL candidate
- * list from the host. Like previews, its flow node never surfaces in the
- * transcript — it only feeds the popup — so it is hidden in every state.
+ * True when an engine command node is a legacy candidate-list probe
+ * (`__candidates`). New candidate lists travel over RPC; this only keeps
+ * probe rows in historical sessions hidden.
  */
 export function isCandidateCommand(command: CommandNode): boolean {
   return (command.args ?? '').includes('__candidates')
@@ -378,7 +354,7 @@ const hiddenSeqsMemo = new WeakMap<HiddenChat, Set<number>>()
 
 /**
  * Anchor seqs that must be hidden from the rendered transcript so the user sees
- * the conversation as the agent sees it: every impact-preview flow node (it only
+ * the conversation as the agent sees it: every legacy probe flow node (it only
  * exists to feed the popover) and every SUCCESSFUL executed `/rewind` command
  * row, plus every message a rewind withdrew — the target, everything after it,
  * and the (unrendered) marker.

@@ -134,8 +134,6 @@ function open(session: SessionFace, t: PopoverOptions['t']): void {
     seq: 5,
     time: 0,
     preview: 'hello',
-    chatOf: () => undefined,
-    watchChat: () => () => {},
     anchor: document.body,
     t,
     onRewind: () => {},

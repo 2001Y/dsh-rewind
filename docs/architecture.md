@@ -39,8 +39,8 @@ machine channels (see [Compatibility strategy](#compatibility-strategy)).
   → agent.cancel({ keepInbox: true }) if running; waitForAgentIdle
   → dropPendingSteering (next-step inbox only; queued messages untouched)
   → append the rewind marker = a user/message with surfaceOp
-    { op: 'replace', startSeq, endSeq } over every surface node after the
-    target (+ sourceEventSeqs = shadowed seqs)          [a single event]
+    { op: 'replace', startSeq, endSeq } over the target and every surface
+    node after it (+ sourceEventSeqs = shadowed seqs)  [a single event]
   → if mode 'both': store.restoreAfter(targetSeq) + syncRestoreObservations
   → result text reports the restored/deleted counts (human copy, never parsed)
   → client: hides withdrawn rows (data-dsh-rewind-hidden), refills composer

@@ -121,7 +121,7 @@ The whole design rests on two principles, simple but deliberate: **the conversat
 
 ### 1. Conversation rewind: a single "mask", not a delete
 
-`append-only` is a hard rule: the session log only grows and is never rewritten — the foundation of auditability and privacy. A rewind never touches history; it makes a single move: append **one "empty message" marker** to the end of the log and use it to "mask + replace" everything after the target message, so the model and the UI see only the part before it.
+`append-only` is a hard rule: the session log only grows and is never rewritten — the foundation of auditability and privacy. A rewind never touches history; it makes a single move: append **one "empty message" marker** to the end of the log and use it to "mask + replace" the target message and everything after it, so the model and the UI see only what came before it.
 
 - **One and the same log** — the append happens only in the current session's log: no new session, no new branch, so no residue or copy is left behind;
 - **The marker is canonical** — the same "hide + replace" as the official `/compact`: `/compact` compresses a span of history into a summary, while `/rewind` swaps in an "empty message" marker. Because it is canonical, DSH's log replay, compaction, and resume preflight all recognize it and never mistake it for a real message;

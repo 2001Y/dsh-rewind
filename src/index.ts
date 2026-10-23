@@ -4,8 +4,8 @@
  * lives in `src/client/`).
  *
  * Rewind mechanism: planning is pure (`src/rewind.ts`); execution appends a
- * marker `user/message` whose `surfaceOp` replaces every surface node after the
- * target with itself, cutting only the model-visible surface
+ * marker `user/message` whose `surfaceOp` replaces the target and every surface
+ * node after it with itself, cutting only the model-visible surface
  * (`docs/architecture.md`).
  *
  * File restore (mode `both`) follows Claude Code's checkpointing: unless

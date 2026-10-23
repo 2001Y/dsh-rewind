@@ -4,10 +4,10 @@
  * and the ordered surface, so this module stays unit-testable.
  *
  * Rewind semantics: rewinding to a user message appends a marker node into the
- * session log whose `surfaceOp` replaces every surface node AFTER the target
- * with itself. The log (audit trail, rendered transcript) is untouched; only
- * the model-visible surface is cut, so the next request derives its context
- * from the target message onward. The marker is a `user/message` carrying a
+ * session log whose `surfaceOp` replaces the target and every surface node
+ * after it with itself. The log (audit trail, rendered transcript) is
+ * untouched; only the model-visible surface is cut, so the next request
+ * derives its context from before the target message. The marker is a `user/message` carrying a
  * replace `surfaceOp` and the producer-owned source `{ kind: 'dsh-rewind' }`
  * (see `marker.ts`); the shape's invariants and history are documented in
  * `docs/architecture.md`.
@@ -64,13 +64,13 @@ export interface RewindCandidate {
 
 /** A validated rewind: the target plus the exact surface range to shadow. */
 export interface RewindPlan {
-  /** Target user message seq (stays on the surface). */
+  /** Target user message seq (withdrawn with the surface range). */
   readonly targetSeq: number
   /** The target's ordered position in the surface. */
   readonly targetIndex: number
-  /** Ordered surface node seqs the rewind shadows (everything after the target). */
+  /** Ordered surface node seqs the rewind shadows (the target and everything after it). */
   readonly shadowedSeqs: readonly number[]
-  /** First surface node after the target — the replace range start (inclusive). */
+  /** The target — the replace range start (inclusive). */
   readonly surfaceStart: number
   /** Last surface node — the replace range end (inclusive). */
   readonly surfaceEnd: number

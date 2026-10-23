@@ -11,7 +11,7 @@
 > is not restated (the probes pin it; [Deliberate semantics](#deliberate-semantics-no-entry-kept)
 > names it). Upstream references use symbols and file names, never line numbers — they rot.
 >
-> Targeted version: npm `@deepseek-ai/*@0.2.1-rc.2` (the last verified release).
+> Targeted version: npm `@deepseek-ai/*@0.2.1-rc.3` (the last verified release).
 > Source reference: the upstream [github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness).
 > Version alignment: see `docs/release/release.md`.
 

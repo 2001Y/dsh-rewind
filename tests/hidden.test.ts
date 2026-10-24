@@ -61,7 +61,10 @@ function candidateCommand(key: string, anchorSeq: number, seq: number, outcome: 
 function snap(nodes: readonly ChatConversationViewNode[], turns?: ReadonlyMap<number, readonly string[]>): HiddenChat {
   return {
     order: nodes.map(node => node.key),
-    nodes: new Map(nodes.map(node => [node.key, node])),
+    nodes: {
+      get: (key: string) => nodes.find(node => node.key === key),
+      values: () => nodes,
+    },
     ...turns === undefined ? {} : { locations: { getTurn: (turn: number) => turns.get(turn) ?? [] } },
   }
 }
@@ -471,5 +474,46 @@ describe('hiddenSeqsOf withdrawn Turn chrome', () => {
     // A new wrapper is a new cache key, so fresh content is folded again.
     const fresh = hiddenSeqsOf(snap([...nodes, executed('cmd2', 9, 9, 1)]))
     expect(sorted(fresh)).toEqual([1, 5, 9])
+  })
+})
+
+/**
+ * The snapshot visibility layer leaves withdrawn nodes in the store but out of
+ * `order`. The pure readers must follow `nodes.values()` so composer refill and
+ * cut discovery keep working after the row unmounts.
+ */
+describe('hidden nodes outside order', () => {
+  const hiddenChat = (
+    nodes: readonly ChatConversationViewNode[],
+    order: readonly string[],
+  ): HiddenChat => {
+    const map = new Map(nodes.map(node => [node.key, node]))
+    return {
+      order,
+      nodes: { get: key => map.get(key), values: () => [...map.values()] },
+    }
+  }
+
+  it('reads a withdrawn target text and image from the store', () => {
+    const target = viewNode('u5', 'user', 5, {
+      kind: 'user',
+      seq: 5,
+      content: [
+        { type: 'text', text: 'withdrawn text' },
+        { type: 'image', attachment: { attachmentId: 'a1', mediaType: 'image/png' } },
+      ],
+    })
+    const chat = hiddenChat([target], [])
+    expect(messageTextAt(chat, 5)).toBe('withdrawn text')
+    expect(messageAttachmentsAt(chat, 5)).toEqual([{ attachmentId: 'a1', mediaType: 'image/png' }])
+  })
+
+  it('finds the command cut even when the command row is hidden', () => {
+    const chat = hiddenChat([
+      viewNode('u5', 'user', 5),
+      viewNode('a6', 'assistant', 6),
+      executed('cmd', 10, 10, 5),
+    ], [])
+    expect(sorted(hiddenSeqsOf(chat))).toEqual([5, 6, 10])
   })
 })

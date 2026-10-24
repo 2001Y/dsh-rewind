@@ -37,6 +37,7 @@ import {
   type RewindCandidate,
 } from './candidates.ts'
 import { closePopover, openPopover, registerPreviewCall, registerComposerFocuser } from './popover.ts'
+import { installChatViewVisibility } from './visibility.ts'
 import { createRewindBridge, isRewindInertSession, runRewindAndFill, writeComposer, type SlotsLike } from './portals.tsx'
 import { chatSnapshotOf, resolveChatWatch, type ChatOf, type ChatWatch, type MessageImageRef } from './hidden.ts'
 import { candidatesOverRpc, previewOverRpc, type ConnectionLike } from './host-rpc.ts'
@@ -150,6 +151,11 @@ export function apply(ctx: ClientContext): void {
     style.dataset.plugin = PLUGIN_PACKAGE
     style.textContent = STYLE
     document.head.appendChild(style)
+
+    // Move rewind hiding to the Chat snapshot input: nodes stay in the store
+    // (composer refill) but leave `order`/locations/navigation/grouping when
+    // the builder receives them as `visibility: 'hidden'`.
+    installChatViewVisibility(ctx)
 
     // ---- rewind portals: session-scoped React mount ----
     // Capabilities handed to the portal bridge. `sessionOf` resolves a

@@ -213,11 +213,9 @@ describe('pending rewind button refresh triggers', () => {
   })
 })
 
-describe('bridge unmount', () => {
-  it('restores the rows this bridge hid, so a live disable cannot truncate the transcript', async () => {
+describe('no DOM hiding', () => {
+  it('leaves a withdrawn row to the snapshot visibility layer', async () => {
     const { session } = fakeSession([])
-    // An internal probe command row is hidden in EVERY state (see `hiddenSeqsOf`),
-    // so one such node is enough to make the bridge hide the seat rendering it.
     const chat = {
       order: ['c1'],
       nodes: {
@@ -232,19 +230,16 @@ describe('bridge unmount', () => {
 
     mount({ ...depsFor(session), chatOf: () => chat })
     await settle()
-    expect(seat.style.display).toBe('none')
-    expect(seat.dataset.dshRewindHidden).toBe('true')
+    expect(seat.style.display).toBe('')
+    expect(seat.dataset.dshRewindHidden).toBeUndefined()
 
     act(() => { root?.unmount() })
     root = undefined
-    // The hide is the plugin's own mutation of a host row: a disposed bridge
-    // runs no further refresh, so it must have undone it.
     expect(seat.style.display).toBe('')
-    expect(seat.dataset.dshRewindHidden).toBeUndefined()
   })
 })
 
-describe('refresh scope and re-hide', () => {
+describe('refresh scope', () => {
   it('ignores composer structure but still refreshes for transcript structure', async () => {
     const { session } = fakeSession([])
     let chatCalls = 0
@@ -269,28 +264,4 @@ describe('refresh scope and re-hide', () => {
     expect(chatCalls).toBeGreaterThan(mounted)
   })
 
-  it('re-hides a row whose display the host resets', async () => {
-    const { session } = fakeSession([])
-    const chat = {
-      order: ['c1'],
-      nodes: {
-        get: (key: string) => (key === 'c1'
-          ? { key: 'c1', kind: 'command', anchorSeq: 7, data: { name: 'rewind-plugin', args: 'preview @5 both', seq: 7 } }
-          : undefined),
-      },
-    }
-    const seat = document.createElement('div')
-    seat.dataset.chatAnchorKey = 'c1'
-    document.body.appendChild(seat)
-
-    mount({ ...depsFor(session), chatOf: () => chat })
-    await settle()
-    expect(seat.style.display).toBe('none')
-
-    // A host re-render resets the inline style; the style branch must re-hide.
-    seat.style.display = ''
-    await settle()
-    expect(seat.style.display).toBe('none')
-    expect(seat.dataset.dshRewindHidden).toBe('true')
-  })
 })

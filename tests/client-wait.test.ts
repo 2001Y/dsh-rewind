@@ -43,7 +43,20 @@ function makeChat(nodes: readonly ChatConversationViewNode[]): HiddenChat {
     order.push(n.key)
     map.set(n.key, n)
   }
-  return { order, nodes: { get: (k: string) => map.get(k) } } as HiddenChat
+  return {
+    order,
+    nodes: { get: (k: string) => map.get(k), values: () => [...map.values()] },
+  } as HiddenChat
+}
+
+/** A snapshot whose command row was hidden by the visibility layer: it is in
+ * `nodes.values()` but absent from `order`. */
+function hiddenCommandChat(commandNode: ChatConversationViewNode): HiddenChat {
+  const map = new Map([[`c${COMMAND_SEQ}`, commandNode]])
+  return {
+    order: [],
+    nodes: { get: (k: string) => map.get(k), values: () => [...map.values()] },
+  }
 }
 
 /** A fake session + chat variable with a live-outcome roll-in helper. */
@@ -88,6 +101,18 @@ describe('waitForCommand wait signal', () => {
     settleChatWithOutcome()
     for (const cb of callbacks) cb()
     await expect(pending).resolves.toEqual({ kind: 'success', text: OUTCOME_TEXT })
+  })
+
+  it('finds a command row the visibility layer removed from order', async () => {
+    const chat = hiddenCommandChat(executedRewind(COMMAND_SEQ, TARGET))
+    const outcome = await waitForCommand(
+      { sessionId: 's1' } as unknown as SessionFace,
+      () => chat,
+      matchExecuted,
+      8000,
+      () => () => {},
+    )
+    expect(outcome).toEqual({ kind: 'success', text: OUTCOME_TEXT })
   })
 
   it('resolves null on timeout when nothing ever signals', async () => {

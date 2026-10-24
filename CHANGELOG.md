@@ -12,11 +12,11 @@ and the release steps are documented in
 
 ### 体验优化
 
-- **回退后的隐藏改由 Chat 快照可见性完成，长会话回退与流式输出更流畅。** 撤回节点在进入 Chat builder 前被标记为隐藏，不再逐行写 DOM `display:none`，也不会挂载对应行；回退刷新不再重扫整段会话，流式更新只在命令节点变化时重算撤回区间。可见内容与输入框回填不变。@SiriLee
+- **回退隐藏改由 Chat 快照可见性完成，长会话回退与流式输出更流畅。** 撤回节点在 Chat 视图生成行之前就被标记为隐藏，不再逐行修改 DOM 或挂载对应行；回退时不再重扫整段会话，流式输出只在命令节点变化时重算撤回区间。可见内容与输入框回填不变。(#58) @SiriLee
 
 ### 其他变更
 
-- **不再提供公开客户端隐藏契约。** 撤回节点不再挂载，也不再携带 `data-dsh-rewind-hidden`；原先的 `hiddenSeqsOf` 公共导出一并移除，客户端只保留插件自身入口。@SiriLee
+- **移除公开客户端隐藏契约。** 客户端不再导出 `hiddenSeqsOf` / `targetSeqOfArgs` / `HiddenChat`，撤回节点也不再携带 `data-dsh-rewind-hidden`；客户端入口不再承诺第三方隐藏契约。(#59) @SiriLee
 
 ---
 
@@ -24,11 +24,11 @@ and the release steps are documented in
 
 ### Improvements
 
-- **Rewind hiding now happens in Chat snapshot visibility, keeping long-session rewinds and streaming smooth.** Withdrawn nodes are marked hidden before the Chat builder and are no longer mounted row by row with DOM `display:none`; refreshes no longer rescan the whole transcript, and streaming updates only recompute the withdrawn spans when a command node changes. Visible content and composer refill are unchanged. @SiriLee
+- **Rewind hiding now uses Chat snapshot visibility, keeping long-session rewinds and streaming smooth.** Withdrawn nodes are marked hidden before the Chat view builds its rows, so they are no longer mounted or hidden row by row in the DOM; the hiding pass no longer rescans the whole transcript, and streaming updates only recompute the withdrawn spans when a command node changes. Visible content and composer refill are unchanged. (#58) @SiriLee
 
 ### Chores
 
-- **No public client hiding contract.** Withdrawn nodes are no longer mounted and no longer carry `data-dsh-rewind-hidden`; the former `hiddenSeqsOf` export is removed too, leaving only the plugin entry. @SiriLee
+- **Remove the public client hiding contract.** The client no longer exports `hiddenSeqsOf` / `targetSeqOfArgs` / `HiddenChat`, and withdrawn nodes no longer carry `data-dsh-rewind-hidden`; the client entry no longer promises a third-party hiding contract. (#59) @SiriLee
 
 **Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.18.1...vNEXT
 

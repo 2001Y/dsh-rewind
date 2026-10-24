@@ -11,7 +11,7 @@
  *
  * @module tests/support/ui-primitives-stub
  */
-import { createElement, useState, type ReactNode } from 'react'
+import { cloneElement, createElement, useState, type ReactElement, type ReactNode } from 'react'
 
 /** The real `Switch` contract: a controlled `role="switch"` button with a label. */
 export function Switch({ checked, onChange, label, disabled = false, title, className }: {
@@ -32,6 +32,15 @@ export function Switch({ checked, onChange, label, disabled = false, title, clas
     className,
     onClick: () => { onChange(!checked) },
   }, createElement('span'))
+}
+
+/** The real `Tooltip` contract: clone the anchor (no wrapper) and mark its label. */
+export function Tooltip(props: {
+  readonly label: string
+  readonly side?: string
+  readonly children: ReactElement
+}): ReactNode {
+  return cloneElement(props.children, { 'data-tooltip': props.label })
 }
 
 /** The real `Tag` contract: a read-only capsule that renders its children. */

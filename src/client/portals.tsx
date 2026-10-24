@@ -52,6 +52,7 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { UserMessageNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ENGINE_COMMAND, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, type ChatOf, type ChatWatch, type HiddenChat, type MessageImageRef } from './hidden.ts'
@@ -1001,14 +1002,16 @@ function RewindButton({ target, sessionId, sessionOf, chatOf, watchChat, isMainV
   }
 
   return (
-    <button
-      type="button"
-      className={CLASS.button}
-      aria-label={t('button.aria')}
-      title={t('button.title')}
-      onClick={onClick}
-      dangerouslySetInnerHTML={{ __html: REWIND_ICON_SVG }}
-    />
+    <Tooltip label={t('button.title')} side="bottom">
+      <button
+        type="button"
+        className={CLASS.button}
+        aria-label={t('button.aria')}
+        aria-haspopup="dialog"
+        onClick={onClick}
+        dangerouslySetInnerHTML={{ __html: REWIND_ICON_SVG }}
+      />
+    </Tooltip>
   )
 }
 
@@ -1105,14 +1108,16 @@ function RetractButton({ target, sessionId, sessionOf, setComposerText, t }: Ret
   }
 
   return (
-    <button
-      type="button"
-      className={CLASS.button}
-      aria-label={t('button.retract.aria')}
-      title={t('button.retract.title')}
-      onClick={onClick}
-      dangerouslySetInnerHTML={{ __html: REWIND_ICON_SVG }}
-    />
+    <Tooltip label={t('button.retract.title')} side="bottom">
+      <button
+        type="button"
+        className={CLASS.button}
+        aria-label={t('button.retract.aria')}
+        aria-haspopup="dialog"
+        onClick={onClick}
+        dangerouslySetInnerHTML={{ __html: REWIND_ICON_SVG }}
+      />
+    </Tooltip>
   )
 }
 

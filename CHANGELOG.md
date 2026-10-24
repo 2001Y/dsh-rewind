@@ -10,13 +10,23 @@ and the release steps are documented in
 
 > 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
 
+---
+
+> DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.19.0...vNEXT
+
+## [0.19.0] - 2026-10-24
+
+> 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
+
 ### 体验优化
 
-- **回退隐藏改由 Chat 快照可见性完成，长会话回退与流式输出更流畅。** 撤回节点在 Chat 视图生成行之前就被标记为隐藏，不再逐行修改 DOM 或挂载对应行；回退时不再重扫整段会话，流式输出只在命令节点变化时重算撤回区间。可见内容与输入框回填不变。(#58) @SiriLee
+- **回退的隐藏层不再依赖 DOM。** 撤回节点在 Chat 快照算出 `order` 之前就被标成 `visibility: 'hidden'`，因此不进入 `order`、不会被挂载，也没有了逐行改 `style.display` 的 DOM 隐藏路径；正文、分组与已加载回合的导航因此保持一致。刷新走增量：撤回区间只在命令节点变化时重算，区间不变时只重新推导发生变化的节点与受影响的回合摘要，区间变化时才整体重建——长会话不再每一步都重扫整段节点。节点仍留在快照里，输入框回填不受影响。右侧导轨仍由宿主的 `turnOutline` 驱动，被整体撤回的回合会显示为未加载刻点。(#58) @SiriLee
 
 ### 其他变更
 
-- **移除公开客户端隐藏契约。** 客户端不再导出 `hiddenSeqsOf` / `targetSeqOfArgs` / `HiddenChat`，撤回节点也不再携带 `data-dsh-rewind-hidden`；客户端入口不再承诺第三方隐藏契约。(#59) @SiriLee
+- **移除公开的客户端隐藏契约（破坏性）。** `dsh-rewind-plugin/client` 不再导出 `hiddenSeqsOf` / `targetSeqOfArgs` / `HiddenChat`，撤回节点也不再带 `data-dsh-rewind-hidden`；若第三方插件或脚本依赖过这些入口，本版起没有替代。新的隐藏机制是私有接缝，不对外承诺。(#59) @SiriLee
 
 ---
 
@@ -24,13 +34,13 @@ and the release steps are documented in
 
 ### Improvements
 
-- **Rewind hiding now uses Chat snapshot visibility, keeping long-session rewinds and streaming smooth.** Withdrawn nodes are marked hidden before the Chat view builds its rows, so they are no longer mounted or hidden row by row in the DOM; the hiding pass no longer rescans the whole transcript, and streaming updates only recompute the withdrawn spans when a command node changes. Visible content and composer refill are unchanged. (#58) @SiriLee
+- **Rewind hiding no longer depends on the DOM.** Withdrawn nodes are marked `visibility: 'hidden'` before the Chat snapshot computes `order`, so they never enter `order`, are never mounted, and the per-row `style.display` hiding path is gone; the transcript, grouping and the loaded turn navigation therefore stay consistent. Refreshes are incremental: the withdrawn spans are recomputed only when a command node changes; while they hold, only the changed nodes and the affected Turn-process summaries are re-derived, and a full rebuild happens only when the spans change — a long session is no longer re-scanned on every step. The nodes stay in the snapshot, so the composer refill is unaffected. The right-hand rail is still fed by the host's `turnOutline`, so a fully withdrawn Turn shows as an unloaded mark. (#58) @SiriLee
 
 ### Chores
 
-- **Remove the public client hiding contract.** The client no longer exports `hiddenSeqsOf` / `targetSeqOfArgs` / `HiddenChat`, and withdrawn nodes no longer carry `data-dsh-rewind-hidden`; the client entry no longer promises a third-party hiding contract. (#59) @SiriLee
+- **The public client hiding contract is removed (a breaking change).** `dsh-rewind-plugin/client` no longer exports `hiddenSeqsOf` / `targetSeqOfArgs` / `HiddenChat`, and withdrawn nodes no longer carry `data-dsh-rewind-hidden`; if a third-party plugin or script relied on those entry points, there is no replacement from this version on. The new hiding mechanism is a private seam and promises nothing to third parties. (#59) @SiriLee
 
-**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.18.1...vNEXT
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.18.1...v0.19.0
 
 ## [0.18.1] - 2026-10-24
 

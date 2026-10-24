@@ -11,7 +11,6 @@
  * @module dsh-rewind/client/candidates
  */
 
-import { hiddenSeqsOf, type HiddenChat } from './hidden.ts'
 import type { SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { RewindKey } from './locales.ts'
 
@@ -79,14 +78,13 @@ export function formatCandidateTime(time: number): string {
 
 /**
  * List the selectable rewind candidates of a session chat snapshot: user and
- * steering rows still on the surface (not hidden by a previous rewind), the
- * newest `limit` kept, newest first — the top row is the default highlight,
+ * steering rows still on the surface (withdrawn rows are absent from `order`),
+ * the newest `limit` kept, newest first — the top row is the default highlight,
  * i.e. the most recent message and the most common rewind target.
  * @param snap - the session chat snapshot.
- * @param hidden - anchor seqs withdrawn by rewinds (from `hiddenSeqsOf`).
  * @param limit - maximum number of candidates to return.
  */
-export function rewindCandidatesOf(snap: CandidateChat, hidden: ReadonlySet<number>, limit = DEFAULT_CANDIDATE_LIMIT): RewindCandidate[] {
+export function rewindCandidatesOf(snap: CandidateChat, limit = DEFAULT_CANDIDATE_LIMIT): RewindCandidate[] {
   // Walk the log backwards so the newest rows come first; `limit` bounds the
   // kept window.
   const candidates: RewindCandidate[] = []
@@ -95,7 +93,6 @@ export function rewindCandidatesOf(snap: CandidateChat, hidden: ReadonlySet<numb
     if (key === undefined) continue
     const node = snap.nodes.get(key)
     if (node === undefined || (node.kind !== 'user' && node.kind !== 'steering')) continue
-    if (hidden.has(node.anchorSeq ?? node.data.seq)) continue
     candidates.push({
       seq: node.data.seq,
       time: node.data.time,
@@ -105,9 +102,9 @@ export function rewindCandidatesOf(snap: CandidateChat, hidden: ReadonlySet<numb
   return candidates
 }
 
-/** The candidates of a live chat snapshot, withdrawn rows already excluded. */
+/** The candidates of a live chat snapshot; withdrawn rows are already excluded from `order`. */
 export function rewindCandidatesOfChat(snap: CandidateChat): RewindCandidate[] {
-  return rewindCandidatesOf(snap, hiddenSeqsOf(snap as unknown as HiddenChat))
+  return rewindCandidatesOf(snap)
 }
 
 /**

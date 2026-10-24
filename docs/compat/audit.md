@@ -76,11 +76,13 @@ row). Reported upstream: Discussions #8345.
 ### U3 — client row visibility is not an extension input
 
 `isVisibleChatNode` already drives chat order, process grouping, turn navigation and process
-presentation, but is first-party-only, so the plugin hides withdrawn rows through the DOM
-(`style.display` + `data-dsh-rewind-hidden`) while the pipeline reads the snapshot. **Ask:** a
-derived, recomputable visibility input at that evaluation point. **Stance:** keep DOM hiding,
-never re-implement harness grouping, and treat the seam as fragile — the two layers cannot see
-each other.
+presentation, but is first-party-only. **Ask:** a derived, recomputable visibility input at that
+evaluation point.
+
+**Workaround (current line):** wrap the registered `chat` view builder's `create()` and mark the
+rewind span `visibility: 'hidden'` before `ChatSnapshotBuilder` computes `order`. Nodes stay in
+the store for composer refill; there is no DOM hiding. The seam is private and the Turn rail is
+still fed by the host `turnOutline`, so a fully hidden Turn remains an unloaded mark; U3 stays open.
 
 ### U4 — no in-process paged history read
 

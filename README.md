@@ -145,7 +145,7 @@ rm <dsh home>/snapshot-cleanup-last-sweep.json
 
 ## 客户端契约
 
-需要获知哪些转录行被回退撤回的第三方 DOM 插件，应使用 `dsh-rewind-plugin/client` 导出的稳定、与本地化无关的纯函数，切勿解析 `outcome.text`。`data-dsh-rewind-hidden` 属性标记被撤回的行（仅观测性）。
+需要获知哪些转录行被回退撤回的第三方插件，应使用 `dsh-rewind-plugin/client` 导出的稳定、与本地化无关的纯函数，切勿解析 `outcome.text`。撤回节点通过 Chat snapshot 的 `visibility` 输入离开可见流，不会挂载；DOM 属性标记不属于客户端契约。
 详见：[docs/contract/client-contract.zh.md](docs/contract/client-contract.zh.md)。
 
 ## 已知问题

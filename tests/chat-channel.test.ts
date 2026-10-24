@@ -2,8 +2,8 @@
  * Chat-channel probes (SiriLee/dsh-rewind#7). On the target line the chat
  * snapshot lives on the `uiConversation` service's named "chat" view
  * (contributed by dsh-client-ui-chat). `chatSnapshotOf` reads that single
- * channel; these probes lock the view-snapshot shape (Map-like nodes, extra
- * `locations` field) flowing through the hiding logic untouched, and the
+ * channel; these probes lock the view-snapshot shape (Map-like nodes with
+ * `values()`) flowing through the withdrawn-seq logic untouched, and the
  * undefined degradation when no view is registered.
  */
 import { describe, expect, it } from 'vitest'
@@ -13,14 +13,12 @@ import { ENGINE_COMMAND, chatSnapshotOf, hiddenSeqsOf, type ChatConversationView
 const EMPTY_CHAT_SNAPSHOT_012 = {
   order: [],
   nodes: { get: () => undefined, values: () => [] },
-  locations: { get: () => undefined },
 }
 
 /** A minimal populated chat snapshot in the same Map-like 0.1.2 shape. */
 const chat012 = (order: string[], nodes: Map<string, unknown>) => ({
   order,
   nodes: { get: (key: string) => nodes.get(key), values: () => [...nodes.values()] },
-  locations: { get: () => undefined },
 })
 
 const viewOf = (snapshot: unknown) => ({ getSnapshot: () => snapshot })
@@ -39,16 +37,16 @@ describe('chatSnapshotOf (0.1.2 uiConversation "chat" view)', () => {
     expect(chatSnapshotOf(undefined)).toBe(undefined)
   })
 
-  it('accepts the 0.1.2 EMPTY_CHAT_SNAPSHOT shape (Map-like nodes, locations)', () => {
+  it('accepts the 0.1.2 EMPTY_CHAT_SNAPSHOT shape (Map-like nodes)', () => {
     const snapshot = chatSnapshotOf(viewOf(EMPTY_CHAT_SNAPSHOT_012))
     expect(snapshot).toBeDefined()
     expect(snapshot!.order).toEqual([])
     expect(snapshot!.nodes.get('missing')).toBeUndefined()
-    // The hiding logic walks it without crashing.
+    // The withdrawn-seq logic walks it without crashing.
     expect(hiddenSeqsOf(snapshot!)).toEqual(new Set())
   })
 
-  it('runs the hiding logic over a 0.1.2-shaped populated snapshot', () => {
+  it('runs the withdrawn-seq logic over a 0.1.2-shaped populated snapshot', () => {
     // One executed /rewind-plugin @5 chat command (marker seq 7) + messages 1..9.
     const command = {
       kind: 'command',

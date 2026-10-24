@@ -1,18 +1,16 @@
 /**
- * Unit tests for the client-side rewind row-hiding computation
- * (src/client/hidden.ts): which transcript rows a rewind hides, across single
- * and MULTIPLE rewinds — including the regression where a second rewind to a
- * LATER point must keep rows cut by an earlier rewind hidden.
+ * Unit tests for the client-side withdrawn-seq computation
+ * (src/client/hidden.ts) and the snapshot reads that serve composer refill.
  */
 import { describe, expect, it } from 'vitest'
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ENGINE_COMMAND, LEGACY_ENGINE_COMMAND, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, targetSeqOfArgs, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
 
-/** A chat view node for one row; only fields the hiding logic reads are real. */
-function viewNode(key: string, kind: string, anchorSeq: number, data: unknown = null, location?: unknown): ChatConversationViewNode {
+/** A chat view node for one row; only fields the withdrawn-seq logic reads are real. */
+function viewNode(key: string, kind: string, anchorSeq: number, data: unknown = null): ChatConversationViewNode {
   return {
     key, kind, id: key, target: 'chat', anchorSeq,
-    location: location as never, visibility: 'visible', data,
+    visibility: 'visible', data,
   } as unknown as ChatConversationViewNode
 }
 

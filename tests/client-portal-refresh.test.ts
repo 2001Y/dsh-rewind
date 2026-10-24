@@ -231,7 +231,6 @@ describe('no DOM hiding', () => {
     mount({ ...depsFor(session), chatOf: () => chat })
     await settle()
     expect(seat.style.display).toBe('')
-    expect(seat.dataset.dshRewindHidden).toBeUndefined()
 
     act(() => { root?.unmount() })
     root = undefined

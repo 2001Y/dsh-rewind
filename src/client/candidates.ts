@@ -48,7 +48,6 @@ export interface CandidateChat {
 /** A user/steering row subset; only fields the listing reads are real. */
 export interface CandidateUserNode {
   readonly kind: string
-  readonly anchorSeq?: number
   readonly data: {
     readonly seq: number
     readonly time: number

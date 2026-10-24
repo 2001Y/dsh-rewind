@@ -17,7 +17,7 @@ import {
 
 /** A user/steering chat node fixture; only fields the listing reads are real. */
 function userNode(key: string, seq: number, time: number, text: string, kind = 'user') {
-  return { key, kind, anchorSeq: seq, data: { seq, time, content: [{ type: 'text', text }] } }
+  return { key, kind, data: { seq, time, content: [{ type: 'text', text }] } }
 }
 
 function snap(nodes: readonly ReturnType<typeof userNode>[]): CandidateChat {
@@ -82,7 +82,7 @@ describe('rewindCandidatesOf', () => {
     expect(rewindCandidatesOf({ ...chat, order: [] })).toEqual([])
   })
 
-  it('reads the message seq when anchorSeq is absent', () => {
+  it('reads the message seq', () => {
     const chat: CandidateChat = {
       order: ['u0'],
       nodes: new Map([['u0', { kind: 'user', data: { seq: 7, time: 1, content: [] } }]]),

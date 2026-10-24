@@ -337,21 +337,18 @@ function cutsContain(cuts: readonly CutSpan[], seq: number): boolean {
 /**
  * Per-snapshot memo of {@link hiddenSeqsOf}.
  *
- * A chat snapshot wrapper is replaced on every committed update, while the
- * refresher runs once per DOM mutation batch; the fold cannot have changed
- * between those refreshes. Only pass the snapshot just read from `chatOf` —
- * its `nodes` is a live store, so a retained wrapper is not a historical value.
- * The cache keeps its own copy and every hit returns a copy: the exported API
- * must not hand callers a shared mutable `Set` that could poison the cache.
+ * Only pass the snapshot just read from the live view — its `nodes` is a live
+ * store, so a retained wrapper is not a historical value. The cache keeps its
+ * own copy and every hit returns a copy: the exported API must not hand callers
+ * a shared mutable `Set` that could poison the cache.
  */
 const hiddenSeqsMemo = new WeakMap<HiddenChat, Set<number>>()
 
 /**
- * Anchor seqs that must be hidden from the rendered transcript so the user sees
- * the conversation as the agent sees it: every legacy probe flow node (it only
- * exists to feed the popover) and every SUCCESSFUL executed `/rewind` command
- * row, plus every message a rewind withdrew — the target, everything after it,
- * and the (unrendered) marker.
+ * Anchor seqs withdrawn by executed rewinds, plus the command rows that carry
+ * them: every legacy probe flow node (it only exists to feed the popover) and
+ * every SUCCESSFUL executed `/rewind` command row, plus every node a rewind
+ * withdrew — the target, everything after it, and the (unrendered) marker.
  *
  * Each executed rewind cuts ONE span `[target, marker]`, and callers must keep
  * the spans SEPARATE: collapsing them to `[min target, max marker]` would hide a

@@ -10,9 +10,25 @@ and the release steps are documented in
 
 > 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
 
+### 体验优化
+
+- **回退后的隐藏改由 Chat 快照可见性完成，长会话回退与流式输出更流畅。** 撤回节点在进入 Chat builder 前被标记为隐藏，不再逐行写 DOM `display:none`，也不会挂载对应行；回退刷新不再重扫整段会话，流式更新只在命令节点变化时重算撤回区间。可见内容与输入框回填不变。@SiriLee
+
+### 其他变更
+
+- **不再提供公开客户端隐藏契约。** 撤回节点不再挂载，也不再携带 `data-dsh-rewind-hidden`；原先的 `hiddenSeqsOf` 公共导出一并移除，客户端只保留插件自身入口。@SiriLee
+
 ---
 
 > DSH `>=0.2.1-rc.1 <0.3.0-0` supported
+
+### Improvements
+
+- **Rewind hiding now happens in Chat snapshot visibility, keeping long-session rewinds and streaming smooth.** Withdrawn nodes are marked hidden before the Chat builder and are no longer mounted row by row with DOM `display:none`; refreshes no longer rescan the whole transcript, and streaming updates only recompute the withdrawn spans when a command node changes. Visible content and composer refill are unchanged. @SiriLee
+
+### Chores
+
+- **No public client hiding contract.** Withdrawn nodes are no longer mounted and no longer carry `data-dsh-rewind-hidden`; the former `hiddenSeqsOf` export is removed too, leaving only the plugin entry. @SiriLee
 
 **Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.18.1...vNEXT
 

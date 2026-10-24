@@ -1,7 +1,5 @@
 /**
- * Pure computation of the chat rows a rewind hides from the rendered
- * transcript. Extracted from the client plugin (`src/client/index.ts`) so the
- * multi-rewind cut logic stays unit-testable without a DOM.
+ * Pure Chat-snapshot readers and executed-rewind cut derivation.
  *
  * @module dsh-rewind/client/hidden
  */
@@ -20,10 +18,7 @@ export const LEGACY_ENGINE_COMMAND = 'rewind'
 /** Engine command names the client recognizes. */
 export const ENGINE_COMMANDS: ReadonlySet<string> = new Set([ENGINE_COMMAND, LEGACY_ENGINE_COMMAND])
 
-/** A chat-snapshot view node as the hiding / composer-refill logic reads it.
- * The harness's view node shape plus the `anchorSeq` the chat snapshot carries
- * (the plugin reads `anchorSeq` off each node; it is not declared on the
- * harness's `ConversationViewNode`). */
+/** A Chat-snapshot view node as the client readers see it. */
 export interface ChatConversationViewNode {
   readonly key: string
   readonly kind?: string
@@ -35,7 +30,7 @@ export interface ChatConversationViewNode {
   readonly visibility?: 'visible' | 'hidden'
 }
 
-/** Minimal chat snapshot reader the hiding logic needs. */
+/** Minimal Chat-snapshot reader the client helpers need. */
 export interface HiddenChat {
   readonly order: readonly string[]
   readonly nodes: {
@@ -101,7 +96,7 @@ export function resolveChatWatch(
 /**
  * Resolve the chat snapshot from the `uiConversation` "chat" view. The view's
  * `getSnapshot()` returns undefined until the named view is registered, which
- * degrades to `undefined` (no targets, no hiding — never a crash).
+ * degrades to `undefined` (no targets — never a crash).
  */
 export function chatSnapshotOf(
   chatView: { getSnapshot(): unknown } | undefined,
@@ -242,7 +237,7 @@ function isPreviewCommand(command: CommandNode): boolean {
  * (`__candidates`). New candidate lists travel over RPC; this only keeps
  * probe rows in historical sessions hidden.
  */
-export function isCandidateCommand(command: CommandNode): boolean {
+function isCandidateCommand(command: CommandNode): boolean {
   return (command.args ?? '').includes('__candidates')
 }
 
@@ -276,117 +271,4 @@ export function rewindCutsOf(nodes: Iterable<ChatConversationViewNode>): RewindC
     cuts.push({ target, marker })
   }
   return cuts
-}
-
-/**
- * One coalesced inclusive anchor-seq range. Adjacent ranges stay separate; only
- * overlapping ranges merge (see {@link coalesceCuts}).
- */
-interface CutSpan {
-  readonly start: number
-  end: number
-}
-
-/**
- * Coalesce rewind cut spans into disjoint, ascending ranges.
- *
- * A span covers an inclusive range of anchor seqs, so two spans that overlap
- * describe one continuous cut and merge. Only strict overlap merges: adjacent
- * ranges stay separate, which keeps the union exact without assuming seqs are
- * integers. Membership then costs one binary search per node instead of a scan
- * of every span, which is what keeps `hiddenSeqsOf` linear in the nodes rather
- * than nodes × rewinds.
- *
- * @param spans - one `[target, marker]` range per executed rewind.
- * @returns the merged ranges, ascending by start.
- */
-function coalesceCuts(spans: readonly CutSpan[]): readonly CutSpan[] {
-  if (spans.length < 2) return spans
-  const sorted = [...spans].sort((left, right) => left.start - right.start || left.end - right.end)
-  const merged: CutSpan[] = []
-  for (const span of sorted) {
-    const last = merged[merged.length - 1]
-    if (last !== undefined && span.start <= last.end) {
-      if (span.end > last.end) last.end = span.end
-      continue
-    }
-    merged.push({ start: span.start, end: span.end })
-  }
-  return merged
-}
-
-/**
- * Whether an anchor seq falls inside any coalesced cut range.
- * @param cuts - coalesced ranges, ascending by start (see `coalesceCuts`).
- * @param seq - the anchor seq to test.
- * @returns true when a rewind withdrew that seq.
- */
-function cutsContain(cuts: readonly CutSpan[], seq: number): boolean {
-  let low = 0
-  let high = cuts.length - 1
-  while (low <= high) {
-    const middle = (low + high) >> 1
-    const cut = cuts[middle]!
-    if (seq < cut.start) high = middle - 1
-    else if (seq > cut.end) low = middle + 1
-    else return true
-  }
-  return false
-}
-
-/**
- * Per-snapshot memo of {@link hiddenSeqsOf}.
- *
- * Only pass the snapshot just read from the live view — its `nodes` is a live
- * store, so a retained wrapper is not a historical value. The cache keeps its
- * own copy and every hit returns a copy: the exported API must not hand callers
- * a shared mutable `Set` that could poison the cache.
- */
-const hiddenSeqsMemo = new WeakMap<HiddenChat, Set<number>>()
-
-/**
- * Anchor seqs withdrawn by executed rewinds, plus the command rows that carry
- * them: every legacy probe flow node (it only exists to feed the popover) and
- * every SUCCESSFUL executed `/rewind` command row, plus every node a rewind
- * withdrew — the target, everything after it, and the (unrendered) marker.
- *
- * Each executed rewind cuts ONE span `[target, marker]`, and callers must keep
- * the spans SEPARATE: collapsing them to `[min target, max marker]` would hide a
- * still-on-surface gap of new traffic between an earlier marker and a later
- * target. Endpoints come from the command nodes (`sourceEventSeq` is the
- * marker's log seq; the outcome text carries the target seq).
- */
-export function hiddenSeqsOf(snap: HiddenChat): Set<number> {
-  const memo = hiddenSeqsMemo.get(snap)
-  if (memo !== undefined) return new Set(memo)
-  const hidden = new Set<number>()
-  const nodes = chatNodesOf(snap)
-  for (const node of nodes) {
-    if (node.kind !== 'command') continue
-    const command = node.data as CommandNode
-    if (command.name === null || !ENGINE_COMMANDS.has(command.name)) continue
-    // An internal probe (preview or candidate-list fetch) is hidden in every
-    // state — pending, succeeded, or errored — so no row flashes in the
-    // transcript while the popover/popup shows its result. Probes never
-    // contribute to the cut range (nothing was actually rewound).
-    if (isPreviewCommand(command) || isCandidateCommand(command)) {
-      hidden.add(command.seq)
-      continue
-    }
-    // Only SUCCESSFUL executed rewinds are hidden (their result is noise once
-    // the conversation is rewound). A failed executed rewind must stay visible
-    // so the user sees the error instead of silently missing the rewind.
-    if (command.outcome?.kind !== 'success') continue
-    // A success WITHOUT a marker rewound nothing (the step-2 "choose a mode"
-    // hint from the now-blocked manual text flow): leave its row visible and
-    // do not extend the cut range.
-    if (command.outcome.sourceEventSeq === undefined) continue
-    hidden.add(command.seq)
-  }
-  const cuts = coalesceCuts(rewindCutsOf(nodes).map(cut => ({ start: cut.target, end: cut.marker })))
-  for (const node of nodes) {
-    if (cutsContain(cuts, node.anchorSeq)) hidden.add(node.anchorSeq)
-  }
-  hiddenSeqsMemo.set(snap, new Set(hidden))
-  return hidden
 }

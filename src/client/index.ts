@@ -9,8 +9,7 @@
  * The command decoration (`ctx.commandUi.decorate`) makes a bare `/rewind` (or
  * its alias `/undo`) open the harness's own popupSelect instead of executing;
  * the parameterized `@<seq>` form stays the execution channel, while the
- * popover's impact and candidate reads go over the host RPC channel. The
- * exported contract is specified in `docs/contract/client-contract.md`.
+ * popover's impact and candidate reads go over the host RPC channel.
  *
  * @module dsh-rewind/client
  */
@@ -468,9 +467,3 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'dsh-rewind client lifecycle')
 }
-
-/**
- * Public contract — rewind visibility. Stable, semver-protected; the rest of
- * this module is internal. See `docs/contract/client-contract.md`.
- */
-export { hiddenSeqsOf, targetSeqOfArgs, type HiddenChat } from './hidden.ts'

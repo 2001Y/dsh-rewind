@@ -159,14 +159,6 @@ This plugin deliberately stays lightweight and focused on one thing — "convers
 > This project and DeepSeek Harness are both in developer preview. Pin exact
 > versions in reproducible environments and review the behavior notes above.
 
-## Client contract
-
-Third-party plugins that need to know which transcript rows a rewind withdrew
-should consume the stable, locale-independent helpers exported from
-`dsh-rewind-plugin/client` — never parse `outcome.text`. Withdrawn nodes leave
-the visible flow through the Chat snapshot `visibility` input and are not
-mounted; the DOM attribute is not part of the contract. Details: [docs/contract/client-contract.md](docs/contract/client-contract.md).
-
 ## Known issues
 
 1. **Exported logs are complete** — a rewind only removes messages from the model context and the view; the exported session log (`/export`) still contains **withdrawn messages**. This plugin cannot alter exports.

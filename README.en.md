@@ -161,11 +161,11 @@ This plugin deliberately stays lightweight and focused on one thing — "convers
 
 ## Client contract
 
-Third-party DOM plugins that need to know which transcript rows a rewind
-withdrew should consume the stable, locale-independent helpers exported from
-`dsh-rewind-plugin/client` — never parse
-`outcome.text`. The `data-dsh-rewind-hidden` attribute marks withdrawn rows
-(observational only). Details: [docs/contract/client-contract.md](docs/contract/client-contract.md).
+Third-party plugins that need to know which transcript rows a rewind withdrew
+should consume the stable, locale-independent helpers exported from
+`dsh-rewind-plugin/client` — never parse `outcome.text`. Withdrawn nodes leave
+the visible flow through the Chat snapshot `visibility` input and are not
+mounted; the DOM attribute is not part of the contract. Details: [docs/contract/client-contract.md](docs/contract/client-contract.md).
 
 ## Known issues
 

@@ -16,7 +16,7 @@
 
 import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { type ChatOf, type ChatWatch, type HiddenChat } from './hidden.ts'
+import { chatNodesOf, type ChatOf, type ChatWatch, type HiddenChat } from './hidden.ts'
 import type { PreviewCall, PreviewOutcome } from './host-rpc.ts'
 import type { RewindKey } from './locales.ts'
 import { CLASS } from './styles.ts'
@@ -105,12 +105,14 @@ export function closePopover(): void {
 function findCommand(chat: HiddenChat | undefined, match: (node: CommandNode) => boolean): CommandNode | undefined {
   if (chat === undefined) return undefined
   let found: CommandNode | undefined
-  for (const key of chat.order) {
-    const node = chat.nodes.get(key)
-    if (node !== undefined && node.kind === 'command') {
-      const command = node.data as CommandNode
-      if (match(command)) found = command
-    }
+  // `nodes.values()` includes command rows the visibility layer hid, and its
+  // order is store insertion order — not anchor order. Compare seq so a hidden
+  // command still settles the wait instead of being missed.
+  for (const node of chatNodesOf(chat)) {
+    if (node.kind !== 'command') continue
+    const command = node.data as CommandNode
+    if (!match(command)) continue
+    if (found === undefined || command.seq >= found.seq) found = command
   }
   return found
 }
@@ -125,12 +127,10 @@ export function knownCommandSeqs(session: SessionFace, chatOf: ChatOf, match: (n
   const known = new Set<number>()
   const chat = chatOf(session)
   if (chat === undefined) return known
-  for (const key of chat.order) {
-    const node = chat.nodes.get(key)
-    if (node !== undefined && node.kind === 'command') {
-      const command = node.data as CommandNode
-      if (match(command)) known.add(command.seq)
-    }
+  for (const node of chatNodesOf(chat)) {
+    if (node.kind !== 'command') continue
+    const command = node.data as CommandNode
+    if (match(command)) known.add(command.seq)
   }
   return known
 }

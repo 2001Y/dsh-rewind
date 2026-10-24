@@ -45,7 +45,6 @@ import {
   useEffect,
   useLayoutEffect,
   useReducer,
-  useRef,
   useState,
   createElement,
   type MouseEvent as ReactMouseEvent,
@@ -55,7 +54,7 @@ import { createPortal } from 'react-dom'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { UserMessageNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { ENGINE_COMMAND, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, type ChatOf, type ChatWatch, type HiddenChat, type MessageImageRef } from './hidden.ts'
+import { ENGINE_COMMAND, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, type ChatOf, type ChatWatch, type HiddenChat, type MessageImageRef } from './hidden.ts'
 import type { RewindKey } from './locales.ts'
 import { messagePreviewOf } from './candidates.ts'
 import { knownCommandSeqs, openPopover, waitForCommand } from './popover.ts'
@@ -393,9 +392,6 @@ const COMPOSER_EDITABLE_SELECTOR = '[data-composer-input]'
 /** Both durable user messages and durable steering inputs render user-style rows. */
 const USER_SEAT_SELECTOR = '[data-chat-flow-kind="user"][data-chat-anchor-key], [data-chat-flow-kind="steering"][data-chat-anchor-key]'
 
-/** Every conversation seat row (hidden rows included). */
-const CHAT_SEAT_SELECTOR = '[data-chat-anchor-key]'
-
 /**
  * Subtrees whose mutations cannot change this bridge's target set in the
  * targeted DSH line: the composer, the right-hand sidebar, and the host's
@@ -410,40 +406,6 @@ const IGNORED_PORTAL_SCOPE = [
   '[data-sidebar-chat]',
   '[data-plugin-panel]',
 ].join(', ')
-
-/**
- * A step/process GROUP shell. It wraps its member rows and carries the
- * composite `group:<json>` anchor, which resolves to no chat node — the group
- * is a view construct, not a message — so it has to be judged by its members.
- */
-const GROUP_SHELL_SELECTOR = '[data-chat-anchor-key^="group:"]'
-
-/**
- * The snapshot seq a rendered seat stands for.
- *
- * A seat carries two keys: `data-chat-anchor-key` (the FLOW key, which for a
- * step/process part is the composite `["<nodeKey>", "<part>"]`) and
- * `data-chat-node-key` (always the plain node key). Resolving only the flow key
- * made every grouped process row — the "正在分析/已完成分析" step rows, tool
- * groups — unresolvable, so a withdrawn one could never be hidden and stayed on
- * screen after a rewind. This mirrors the official viewport's own identity read
- * (`anchorKey === key || nodeKey === key`).
- *
- * @param element - one rendered seat.
- * @param chat - the live chat snapshot the seat belongs to.
- * @returns the node's `anchorSeq`, or undefined when the seat has no resolvable node.
- */
-export function resolveSeatAnchorSeq(
-  element: HTMLElement,
-  chat: HiddenChat | undefined,
-): number | undefined {
-  if (chat === undefined) return undefined
-  const flowKey = element.dataset.chatAnchorKey
-  const nodeKey = element.dataset.chatNodeKey
-  const node = (flowKey !== undefined ? chat.nodes.get(flowKey) : undefined)
-    ?? (nodeKey !== undefined ? chat.nodes.get(nodeKey) : undefined)
-  return node?.anchorSeq
-}
 
 /** Pending steering bubble rows (Host-authoritative pre-admission projection). */
 const PENDING_SEAT_SELECTOR = '[data-pending-steering]'
@@ -485,113 +447,11 @@ export function actionsContainerOf(row: HTMLElement | undefined): HTMLElement | 
 }
 
 /**
- * Hide every rendered seat a rewind withdrew, plus the step/process GROUP shells
- * those seats empty.
- *
- * A seat's seq comes from `resolveSeatAnchorSeq`: `data-chat-anchor-key` (the
- * FLOW key, composite for a step/process part) with `data-chat-node-key` (always
- * the plain node key) as the fallback. A group shell is different: it carries
- * the composite `group:<json>` anchor, which resolves to no chat node — the
- * group is a view construct, not a message. It is therefore judged by its
- * members, which THIS batch already holds: a shell whose every member seat is
- * withdrawn has no live content left, so it is hidden too. That is what stops a
- * fully withdrawn "analysis completed" / "command executed" group from staying
- * on screen as an expandable empty row. A shell keeps one live member only if
- * that member is genuinely on the surface, in which case the shell stays; a
- * shell the batch carries no member of is left alone.
- *
- * A MEMBER is a real chat node seat — `ChatNodeSeat` is the one shape that
- * writes `data-chat-node-key` beside the anchor key. An anchor-only descendant
- * (the tool call tree's own `call:<callId>` row, or a third-party anchor) is
- * nested decoration: it resolves to no chat node, so it does NOT vote on the
- * shell's emptiness. Counting such a row as "still live" is what left a fully
- * withdrawn "command executed" tool group on screen as an empty expandable row
- * after every member below it had been hidden.
- *
- * Every hidden element carries `data-dsh-rewind-hidden` (see
- * `docs/contract/client-contract.md`).
- *
- * @param chat - the live chat snapshot the seats belong to.
- * @param seats - this refresh's seat batch (every `[data-chat-anchor-key]`).
- * @param hiddenSeqs - anchor seqs withdrawn by the executed rewinds.
- * @param hidden - elements this pass has hidden, so a re-created row is re-judged.
- */
-export function hideWithdrawnSeats(
-  chat: HiddenChat | undefined,
-  seats: Iterable<HTMLElement>,
-  hiddenSeqs: ReadonlySet<number>,
-  hidden: Set<HTMLElement>,
-): void {
-  if (chat === undefined) return
-  // Shell → "every member in this batch was withdrawn". A shell is only judged
-  // through members the batch actually carries: an unobserved shell is left
-  // alone, because hiding it could take live content off screen.
-  const shells = new Map<HTMLElement, boolean>()
-  for (const seat of seats) {
-    // A group shell is ITSELF matched by the seat selector (it carries
-    // `data-chat-anchor-key="group:<json>"`), but that composite key resolves to
-    // no chat node. Running the seat branches on it made the two passes fight
-    // over one element: the seat pass un-hid the shell the shell pass had just
-    // hidden, which mutated `style` on every pass and kept the observer
-    // re-entering refresh as a microtask — an unbounded microtask loop. Shells
-    // are owned by the shell pass below only; members still feed its decision.
-    if (seat.matches(GROUP_SHELL_SELECTOR)) continue
-    const anchor = resolveSeatAnchorSeq(seat, chat)
-    const withdrawn = anchor !== undefined && hiddenSeqs.has(anchor)
-    if (withdrawn) {
-      seat.style.display = 'none'
-      seat.dataset.dshRewindHidden = 'true'
-      hidden.add(seat)
-    } else if (hidden.has(seat)) {
-      seat.style.display = ''
-      delete seat.dataset.dshRewindHidden
-      hidden.delete(seat)
-    }
-    if (seat.dataset.chatNodeKey === undefined) continue
-    const shell = seat.parentElement?.closest<HTMLElement>(GROUP_SHELL_SELECTOR)
-    if (shell === null || shell === undefined) continue
-    shells.set(shell, (shells.get(shell) ?? true) && withdrawn)
-  }
-  for (const [shell, allWithdrawn] of shells) {
-    // Symmetric with the seat branches: the shell pass owns the shell, so it is
-    // also the one that shows it again when it regains a live member.
-    if (allWithdrawn) {
-      shell.style.display = 'none'
-      shell.dataset.dshRewindHidden = 'true'
-      hidden.add(shell)
-    } else if (hidden.has(shell)) {
-      shell.style.display = ''
-      delete shell.dataset.dshRewindHidden
-      hidden.delete(shell)
-    }
-  }
-}
-
-/**
- * Undo every hide the given set recorded, so a live disable (or a session-slot
- * collapse) cannot leave the transcript truncated.
- *
- * The hide is the plugin's OWN mutation of host rows ({@link hideWithdrawnSeats}),
- * and nothing else would ever revert it: a disposed bridge runs no further
- * refresh, so rows it hid would stay hidden with no affordance to bring them
- * back.
- *
- * @param hidden - the elements this bridge currently hides; emptied.
- */
-export function showHiddenSeats(hidden: Set<HTMLElement>): void {
-  for (const element of hidden) {
-    element.style.display = ''
-    delete element.dataset.dshRewindHidden
-  }
-  hidden.clear()
-}
-
-/**
  * Collect the portal targets of one session: user rows × snapshot nodes.
  * Exported as a test seam — the DOM→targets pairing that drives the ↶ button
  * is otherwise only reachable through a full React portal render.
  */
-export function collectTargets(chat: HiddenChat, hiddenSeqs: ReadonlySet<number>): readonly PortalTarget[] {
+export function collectTargets(chat: HiddenChat): readonly PortalTarget[] {
   const rows = new Map<string, HTMLElement>()
   for (const element of document.querySelectorAll<HTMLElement>(USER_SEAT_SELECTOR)) {
     const key = element.dataset.chatAnchorKey
@@ -602,8 +462,6 @@ export function collectTargets(chat: HiddenChat, hiddenSeqs: ReadonlySet<number>
     const node = chat.nodes.get(key)
     if (node === undefined || (node.kind !== 'user' && node.kind !== 'steering')) continue
     const user = node.data as UserMessageNode
-    // A withdrawn row must not get a button (it is not part of the surface).
-    if (hiddenSeqs.has(node.anchorSeq ?? user.seq)) continue
     const row = rows.get(key)
     const actions = actionsContainerOf(row)
     // The actions row is the last child of the user row and holds the
@@ -650,15 +508,13 @@ export function isRewindInertSession(snapshot: SessionKindLike): boolean {
  * pure, directly testable decision.
  * @param snapshot - the session snapshot carrying the `subagent` cell.
  * @param chat - the session's chat snapshot, or undefined while unavailable.
- * @param hiddenSeqs - anchor seqs withdrawn by previous rewinds.
  */
 export function collectDurableTargets(
   snapshot: SessionKindLike,
   chat: HiddenChat | undefined,
-  hiddenSeqs: ReadonlySet<number>,
 ): readonly PortalTarget[] {
   if (chat === undefined || isRewindInertSession(snapshot)) return []
-  return collectTargets(chat, hiddenSeqs)
+  return collectTargets(chat)
 }
 
 /**
@@ -777,17 +633,12 @@ interface RewindPortalsProps extends RewindBridgeDeps {
  * synchronous full-transcript scan inside a commit microtask.
  *
  * The refresh is driven by the three inputs its targets are made of: the chat
- * snapshot (`hiddenSeqsOf`), the session's `inbox` projection (the pending
+ * snapshot's visible order, the session's `inbox` projection (the pending
  * occurrences — see `syncInboxSubscription`), and the DOM (row/actions mounts,
  * via the scoped observer).
  */
 export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession, watchChat, t, subscribeLocale, setComposerText, restoreImages }: RewindPortalsProps): ReactNode {
   const [targets, setTargets] = useState<readonly PortalTarget[]>([])
-  // Rows this bridge has hidden; re-shown when they leave the withdrawn span.
-  // A strong set (not a WeakSet) so the unmount can restore exactly what THIS
-  // bridge hid — the `refresh` prunes detached nodes, so a long session cannot
-  // retain the rows React has already discarded.
-  const hidden = useRef(new Set<HTMLElement>())
   // Re-render when the active locale switches so injected button labels
   // keep following the dsh language preference (the popover and guard hint
   // are created fresh each time and already read the current locale).
@@ -815,39 +666,9 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
       // = no view registered yet: skip the durable path entirely (pending
       // targets stay collectible).
       const chat = chatOf(session)
-      const hiddenSeqs = chat === undefined ? new Set<number>() : hiddenSeqsOf(chat)
-      // Hide withdrawn rows (rewind markers, engine command rows, and every
-      // message inside any executed rewind's [target, marker] span — the spans
-      // stay separate, never one collapsed range) so the rendered transcript
-      // matches the agent's context. React re-renders recreate rows, so this
-      // runs on every refresh.
-      //
-      // Each hidden row also carries a semantic marker (`data-dsh-rewind-hidden`)
-      // so DevTools, other DOM plugins and tests can tell a rewind-hide apart
-      // from any collapse/filter hide. Purely observational: the marker is
-      // kept in sync with the hide/show state on both branches (a recreated
-      // row has no marker and is re-marked when it re-enters a hidden span).
-      // Apply the hide to this batch's seats (and the group shells they empty):
-      // `document.querySelectorAll(CHAT_SEAT_SELECTOR)` is the batch, re-read on
-      // every refresh because React recreates rows.
-      // The set is strong so the unmount can restore what this bridge hid: drop
-      // the rows React has already discarded first, so it stays bounded to the
-      // live transcript.
-      for (const element of hidden.current) if (!element.isConnected) hidden.current.delete(element)
-      // Nothing to withdraw and nothing this bridge already hid means the pass
-      // would walk every row and change nothing: skip the whole-transcript
-      // `querySelectorAll` that each refresh otherwise paid.
-      if (hiddenSeqs.size > 0 || hidden.current.size > 0) {
-        hideWithdrawnSeats(
-          chat,
-          chat === undefined ? [] : document.querySelectorAll<HTMLElement>(CHAT_SEAT_SELECTOR),
-          hiddenSeqs,
-          hidden.current,
-        )
-      }
-      // Nothing is logged in this per-batch scan: printing a hide set here would
-      // flood the console during streaming.
-      const durable = collectDurableTargets(snapshot, chat, hiddenSeqs)
+      // The visibility layer already removed withdrawn nodes from `order`, so
+      // target collection reads the visible order directly.
+      const durable = collectDurableTargets(snapshot, chat)
       const next = [...durable, ...collectPendingTargets(snapshot, steeringItemsOf(inboxOf(session)?.['next-step']))]
       // Diff: no change → no re-render. A refresh can run several times for one
       // target set (chat publication, inbox, DOM catch-up); only an actual
@@ -901,33 +722,17 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
     const unsubscribeChat = watchChat(sessionId, queueRefresh)
     const observer = new MutationObserver(records => {
       for (const record of records) {
-        if (record.type === 'attributes') {
-          // Only a row this bridge hid can need re-hiding. Any other restyle —
-          // the composer's height variables, a sidebar resize, a third-party
-          // panel — cannot change the target set.
-          const target = record.target
-          if (target instanceof HTMLElement && hidden.current.has(target) && target.style.display !== 'none') {
-            queueRefresh()
-            return
-          }
-          continue
-        }
         const node = record.target instanceof Element ? record.target : record.target.parentElement
         if (node !== null && node.closest(IGNORED_PORTAL_SCOPE) !== null) continue
         queueRefresh()
         return
       }
     })
-    // attributes: watch style so a harness re-render that resets display is
-    // re-hidden on the next refresh instead of flickering back.
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] })
+    observer.observe(document.body, { childList: true, subtree: true })
     return () => {
       active = false
       observer.disconnect()
       unsubscribeChat()
-      // The hides are this bridge's own mutation of host rows: undo them, or a
-      // live disable leaves the transcript truncated for good.
-      showHiddenSeats(hidden.current)
       unsubscribeInbox?.()
       unsubscribeInbox = undefined
       inboxOwner = undefined

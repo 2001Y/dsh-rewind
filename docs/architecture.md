@@ -43,8 +43,8 @@ machine channels (see [Compatibility strategy](#compatibility-strategy)).
     node after it (+ sourceEventSeqs = shadowed seqs)  [a single event]
   → if mode 'both': store.restoreAfter(targetSeq) + syncRestoreObservations
   → result text reports the restored/deleted counts (human copy, never parsed)
-  → client: hides withdrawn rows (data-dsh-rewind-hidden), refills composer
-    with the target message's text
+  → client: hides withdrawn rows through the Chat snapshot visibility input,
+    refills composer with the target message's text
 ```
 
 Key invariants:
@@ -121,11 +121,10 @@ pruneStale            cross-session auto-cleanup (default off): whole
   `compat-interop.test.ts` / `compat-gaps.test.ts` probe harness behavior and pin findings in
   `docs/compat/audit.md`; `scripts/verify-host.mjs` runs a real end-to-end
   rewind + `/compact` chain (the full check suite).
-- **Stable machine channels for third parties**: `dsh-rewind-plugin/client`
-  exports the pure hidden-span computation; withdrawn rows carry
-  `data-dsh-rewind-hidden`; both are semver-protected
-  (`docs/contract/client-contract.md`). DOM coupling is minimized to a small
-  set of marked rows plus a structurally-typed slot registration.
+- **Stable machine channel for third parties**: `dsh-rewind-plugin/client`
+  exports the pure hidden-span computation (semver-protected). Withdrawn nodes
+  leave the Chat flow through the builder's `visibility` input; DOM coupling is
+  limited to the structurally-typed portal registration.
 
 ## Roadmap
 

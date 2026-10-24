@@ -17,7 +17,7 @@ import {
 
 /** A user/steering chat node fixture; only fields the listing reads are real. */
 function userNode(key: string, seq: number, time: number, text: string, kind = 'user') {
-  return { key, kind, anchorSeq: seq, data: { seq, time, content: [{ type: 'text', text }] } }
+  return { key, kind, data: { seq, time, content: [{ type: 'text', text }] } }
 }
 
 function snap(nodes: readonly ReturnType<typeof userNode>[]): CandidateChat {
@@ -37,21 +37,20 @@ describe('rewindCandidatesOf', () => {
       userNode('u1', 1, 2000, 'second'),
       userNode('u2', 2, 3000, 'third'),
     ])
-    expect(rewindCandidatesOf(chat, new Set())).toEqual([
+    expect(rewindCandidatesOf(chat)).toEqual([
       { seq: 2, time: 3000, preview: 'third' },
       { seq: 1, time: 2000, preview: 'second' },
       { seq: 0, time: 1000, preview: 'first' },
     ])
   })
 
-  it('skips withdrawn (hidden) messages', () => {
+  it('skips rows absent from the visible order', () => {
     const chat = snap([
       userNode('u0', 0, 1000, 'first'),
       userNode('u1', 1, 2000, 'second'),
       userNode('u2', 2, 3000, 'third'),
     ])
-    const candidates = rewindCandidatesOf(chat, new Set([1, 2]))
-    expect(candidates.map(candidate => candidate.seq)).toEqual([0])
+    expect(rewindCandidatesOf({ ...chat, order: ['u0'] }).map(candidate => candidate.seq)).toEqual([0])
   })
 
   it('includes steering rows and skips non-user rows', () => {
@@ -60,12 +59,12 @@ describe('rewindCandidatesOf', () => {
       userNode('s1', 1, 2000, 'steered', 'steering'),
       userNode('a2', 2, 3000, 'assistant', 'assistant'),
     ])
-    expect(rewindCandidatesOf(chat, new Set()).map(candidate => candidate.seq)).toEqual([1, 0])
+    expect(rewindCandidatesOf(chat).map(candidate => candidate.seq)).toEqual([1, 0])
   })
 
   it('keeps the newest DEFAULT_CANDIDATE_LIMIT (100) by default', () => {
     const nodes = Array.from({ length: 105 }, (_, i) => userNode(`u${i}`, i, i, `msg ${i}`))
-    const candidates = rewindCandidatesOf(snap(nodes), new Set())
+    const candidates = rewindCandidatesOf(snap(nodes))
     expect(candidates).toHaveLength(100)
     expect(candidates[0]!.seq).toBe(104)
     expect(candidates[99]!.seq).toBe(5)
@@ -73,24 +72,22 @@ describe('rewindCandidatesOf', () => {
 
   it('respects an explicit limit', () => {
     const nodes = Array.from({ length: 12 }, (_, i) => userNode(`u${i}`, i, i, `msg ${i}`))
-    const candidates = rewindCandidatesOf(snap(nodes), new Set(), 5)
+    const candidates = rewindCandidatesOf(snap(nodes), 5)
     expect(candidates.map(candidate => candidate.seq)).toEqual([11, 10, 9, 8, 7])
   })
 
-  it('produces no candidates for an empty or all-hidden chat', () => {
-    expect(rewindCandidatesOf(snap([]), new Set())).toEqual([])
+  it('produces no candidates for an empty chat or empty visible order', () => {
+    expect(rewindCandidatesOf(snap([]))).toEqual([])
     const chat = snap([userNode('u0', 0, 0, 'only')])
-    expect(rewindCandidatesOf(chat, new Set([0]))).toEqual([])
+    expect(rewindCandidatesOf({ ...chat, order: [] })).toEqual([])
   })
 
-  it('falls back to the message seq when anchorSeq is absent', () => {
+  it('reads the message seq', () => {
     const chat: CandidateChat = {
       order: ['u0'],
       nodes: new Map([['u0', { kind: 'user', data: { seq: 7, time: 1, content: [] } }]]),
     }
-    // Hidden by the seq fallback even though no anchorSeq is declared.
-    expect(rewindCandidatesOf(chat, new Set([7]))).toEqual([])
-    expect(rewindCandidatesOf(chat, new Set())).toHaveLength(1)
+    expect(rewindCandidatesOf(chat)).toEqual([{ seq: 7, time: 1, preview: '' }])
   })
 })
 

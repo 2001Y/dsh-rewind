@@ -1,31 +1,17 @@
 /**
- * Unit tests for the client-side rewind row-hiding computation
- * (src/client/hidden.ts): which transcript rows a rewind hides, across single
- * and MULTIPLE rewinds — including the regression where a second rewind to a
- * LATER point must keep rows cut by an earlier rewind hidden.
+ * Unit tests for the client-side withdrawn-seq computation
+ * (src/client/hidden.ts) and the snapshot reads that serve composer refill.
  */
 import { describe, expect, it } from 'vitest'
 import type { CommandNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ENGINE_COMMAND, LEGACY_ENGINE_COMMAND, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, targetSeqOfArgs, type ChatConversationViewNode, type HiddenChat } from '../src/client/hidden.ts'
 
-/** A chat view node for one row; only fields the hiding logic reads are real. */
-function viewNode(key: string, kind: string, anchorSeq: number, data: unknown = null, location?: unknown): ChatConversationViewNode {
+/** A chat view node for one row; only fields the withdrawn-seq logic reads are real. */
+function viewNode(key: string, kind: string, anchorSeq: number, data: unknown = null): ChatConversationViewNode {
   return {
     key, kind, id: key, target: 'chat', anchorSeq,
-    location: location as never, visibility: 'visible', data,
+    visibility: 'visible', data,
   } as unknown as ChatConversationViewNode
-}
-
-/** A Turn-process summary row; an absent `turnStart` models a window that begins mid-Turn. */
-function turnProcess(key: string, anchorSeq: number, turn: number, turnStart?: number): ChatConversationViewNode {
-  const start = turnStart === undefined ? {} : { start: { seq: turnStart } }
-  return viewNode(
-    key,
-    'turn-process',
-    anchorSeq,
-    { kind: 'turn-process', turn },
-    { kind: 'turn', turn: { turn, ...start } },
-  )
 }
 
 /** One engine command row with an explicit settled outcome. */
@@ -58,11 +44,13 @@ function candidateCommand(key: string, anchorSeq: number, seq: number, outcome: 
   return rewindCommand(key, anchorSeq, seq, outcome, '__candidates', name)
 }
 
-function snap(nodes: readonly ChatConversationViewNode[], turns?: ReadonlyMap<number, readonly string[]>): HiddenChat {
+function snap(nodes: readonly ChatConversationViewNode[]): HiddenChat {
   return {
     order: nodes.map(node => node.key),
-    nodes: new Map(nodes.map(node => [node.key, node])),
-    ...turns === undefined ? {} : { locations: { getTurn: (turn: number) => turns.get(turn) ?? [] } },
+    nodes: {
+      get: (key: string) => nodes.find(node => node.key === key),
+      values: () => nodes,
+    },
   }
 }
 
@@ -378,84 +366,7 @@ describe('messageAttachmentsAt (composer image-restore source)', () => {
   })
 })
 
-/**
- * The Turn-process summary row of a withdrawn Turn. Its anchor
- * (`turn.start.seq − 0.1`) can precede the rewind target, so the anchor
- * comparison alone leaves the "已停止" row on screen — these probes pin the
- * container rule that closes it, and its conservative degradations.
- */
-describe('hiddenSeqsOf withdrawn Turn chrome', () => {
-  it('hides the Turn-process row of a Turn whose rows were all withdrawn', () => {
-    const nodes = [
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      viewNode('t20', 'turn-tail', 20.1),
-      turnProcess('p3', 7.9, 3, 8),
-      executed('cmd', 21, 21, 10),
-    ]
-    const turns = new Map([[3, ['u10', 'a20', 't20', 'p3']]])
-    expect(sorted(hiddenSeqsOf(snap(nodes, turns)))).toEqual([7.9, 10, 20, 20.1, 21])
-  })
-
-  it('keeps the row when a row of the Turn survives before the target', () => {
-    const nodes = [
-      viewNode('u5', 'user', 5),
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      turnProcess('p3', 7.9, 3, 8),
-      executed('cmd', 21, 21, 10),
-    ]
-    const turns = new Map([[3, ['u5', 'u10', 'a20', 'p3']]])
-    const hidden = hiddenSeqsOf(snap(nodes, turns))
-    expect(hidden.has(7.9)).toBe(false)
-    expect(hidden.has(5)).toBe(false)
-  })
-
-  it('keeps the row when the window does not cover the Turn start', () => {
-    const nodes = [
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      turnProcess('p3', 7.9, 3),
-      executed('cmd', 21, 21, 10),
-    ]
-    const turns = new Map([[3, ['u10', 'a20', 'p3']]])
-    expect(hiddenSeqsOf(snap(nodes, turns)).has(7.9)).toBe(false)
-  })
-
-  it('keeps the row when the Turn index is incomplete or unusable', () => {
-    const nodes = [
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      turnProcess('p3', 7.9, 3, 8),
-      executed('cmd', 21, 21, 10),
-    ]
-    // An unloaded row: the index names a key the node store does not hold.
-    const unloaded = snap(nodes, new Map([[3, ['u10', 'a20', 'p3', 'gone']]]))
-    expect(hiddenSeqsOf(unloaded).has(7.9)).toBe(false)
-    // A malformed index degrades instead of failing the hiding that works.
-    const broken: HiddenChat = { ...snap(nodes), locations: { getTurn: () => { throw new Error('broken') } } }
-    expect(() => hiddenSeqsOf(broken)).not.toThrow()
-    expect(sorted(hiddenSeqsOf(broken))).toEqual([10, 20, 21])
-  })
-
-  it('keeps the row when its anchor value also addresses a live row', () => {
-    const nodes = [
-      viewNode('g7', 'goal-input', 7.9),
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      turnProcess('p3', 7.9, 3, 8),
-      executed('cmd', 21, 21, 10),
-    ]
-    const turns = new Map([[3, ['u10', 'a20', 'p3']]])
-    expect(hiddenSeqsOf(snap(nodes, turns)).has(7.9)).toBe(false)
-  })
-
-  it('does nothing without an executed rewind', () => {
-    const nodes = [turnProcess('p3', 7.9, 3, 8), viewNode('u10', 'user', 10)]
-    const turns = new Map([[3, ['u10', 'p3']]])
-    expect(hiddenSeqsOf(snap(nodes, turns)).size).toBe(0)
-  })
-
+describe('hiddenSeqsOf memoization', () => {
   it('memoizes one snapshot without handing the cache to a caller', () => {
     const nodes = [
       viewNode('u0', 'user', 0),
@@ -471,5 +382,46 @@ describe('hiddenSeqsOf withdrawn Turn chrome', () => {
     // A new wrapper is a new cache key, so fresh content is folded again.
     const fresh = hiddenSeqsOf(snap([...nodes, executed('cmd2', 9, 9, 1)]))
     expect(sorted(fresh)).toEqual([1, 5, 9])
+  })
+})
+
+/**
+ * The snapshot visibility layer leaves withdrawn nodes in the store but out of
+ * `order`. The pure readers must follow `nodes.values()` so composer refill and
+ * cut discovery keep working after the row unmounts.
+ */
+describe('hidden nodes outside order', () => {
+  const hiddenChat = (
+    nodes: readonly ChatConversationViewNode[],
+    order: readonly string[],
+  ): HiddenChat => {
+    const map = new Map(nodes.map(node => [node.key, node]))
+    return {
+      order,
+      nodes: { get: key => map.get(key), values: () => [...map.values()] },
+    }
+  }
+
+  it('reads a withdrawn target text and image from the store', () => {
+    const target = viewNode('u5', 'user', 5, {
+      kind: 'user',
+      seq: 5,
+      content: [
+        { type: 'text', text: 'withdrawn text' },
+        { type: 'image', attachment: { attachmentId: 'a1', mediaType: 'image/png' } },
+      ],
+    })
+    const chat = hiddenChat([target], [])
+    expect(messageTextAt(chat, 5)).toBe('withdrawn text')
+    expect(messageAttachmentsAt(chat, 5)).toEqual([{ attachmentId: 'a1', mediaType: 'image/png' }])
+  })
+
+  it('finds the command cut even when the command row is hidden', () => {
+    const chat = hiddenChat([
+      viewNode('u5', 'user', 5),
+      viewNode('a6', 'assistant', 6),
+      executed('cmd', 10, 10, 5),
+    ], [])
+    expect(sorted(hiddenSeqsOf(chat))).toEqual([5, 6, 10])
   })
 })

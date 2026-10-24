@@ -39,7 +39,7 @@ store 的 `nodes.values()`（因此已被 visibility 层隐藏的节点仍参与
 每次回退切一条区间；重叠区间合并，相邻区间不合并，所以早先 marker 与
 后来 target 之间仍在新流量保持可见。失败的命令、没有 marker 的成功命令
 既不贡献命令行，也不贡献区间。Group shell 与 Turn-process 摘要属于呈现
-结构，不属于本稳定集合；空摘要由 visibility 层直接隐藏。
+结构，不属于本集合；空摘要由 visibility 层直接隐藏。
 
 `targetSeqOfArgs(args)` 从命令原始 `args` 中取第一个 `@<digits>` target。
 它只是解析辅助，不做合法性校验。

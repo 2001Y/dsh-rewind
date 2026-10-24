@@ -9,8 +9,8 @@
  * the builder sees them.
  *
  * The seam is private: `uiConversation.views` is a first-party registry and
- * `definition.create()` is not an extension point. It is capability-probed
- * and restored on unload.
+ * `definition.create()` is not an extension point. Its shape is checked and it
+ * is restored on unload.
  *
  * @module dsh-rewind/client/visibility
  */

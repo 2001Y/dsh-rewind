@@ -16,18 +16,6 @@ function viewNode(key: string, kind: string, anchorSeq: number, data: unknown = 
   } as unknown as ChatConversationViewNode
 }
 
-/** A Turn-process summary row; an absent `turnStart` models a window that begins mid-Turn. */
-function turnProcess(key: string, anchorSeq: number, turn: number, turnStart?: number): ChatConversationViewNode {
-  const start = turnStart === undefined ? {} : { start: { seq: turnStart } }
-  return viewNode(
-    key,
-    'turn-process',
-    anchorSeq,
-    { kind: 'turn-process', turn },
-    { kind: 'turn', turn: { turn, ...start } },
-  )
-}
-
 /** One engine command row with an explicit settled outcome. */
 function rewindCommand(key: string, anchorSeq: number, seq: number, outcome: CommandNode['outcome'], args: string | null = null, name = ENGINE_COMMAND): ChatConversationViewNode {
   return viewNode(key, 'command', anchorSeq, {
@@ -58,14 +46,13 @@ function candidateCommand(key: string, anchorSeq: number, seq: number, outcome: 
   return rewindCommand(key, anchorSeq, seq, outcome, '__candidates', name)
 }
 
-function snap(nodes: readonly ChatConversationViewNode[], turns?: ReadonlyMap<number, readonly string[]>): HiddenChat {
+function snap(nodes: readonly ChatConversationViewNode[]): HiddenChat {
   return {
     order: nodes.map(node => node.key),
     nodes: {
       get: (key: string) => nodes.find(node => node.key === key),
       values: () => nodes,
     },
-    ...turns === undefined ? {} : { locations: { getTurn: (turn: number) => turns.get(turn) ?? [] } },
   }
 }
 
@@ -381,84 +368,7 @@ describe('messageAttachmentsAt (composer image-restore source)', () => {
   })
 })
 
-/**
- * The Turn-process summary row of a withdrawn Turn. Its anchor
- * (`turn.start.seq − 0.1`) can precede the rewind target, so the anchor
- * comparison alone leaves the "已停止" row on screen — these probes pin the
- * container rule that closes it, and its conservative degradations.
- */
-describe('hiddenSeqsOf withdrawn Turn chrome', () => {
-  it('hides the Turn-process row of a Turn whose rows were all withdrawn', () => {
-    const nodes = [
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      viewNode('t20', 'turn-tail', 20.1),
-      turnProcess('p3', 7.9, 3, 8),
-      executed('cmd', 21, 21, 10),
-    ]
-    const turns = new Map([[3, ['u10', 'a20', 't20', 'p3']]])
-    expect(sorted(hiddenSeqsOf(snap(nodes, turns)))).toEqual([7.9, 10, 20, 20.1, 21])
-  })
-
-  it('keeps the row when a row of the Turn survives before the target', () => {
-    const nodes = [
-      viewNode('u5', 'user', 5),
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      turnProcess('p3', 7.9, 3, 8),
-      executed('cmd', 21, 21, 10),
-    ]
-    const turns = new Map([[3, ['u5', 'u10', 'a20', 'p3']]])
-    const hidden = hiddenSeqsOf(snap(nodes, turns))
-    expect(hidden.has(7.9)).toBe(false)
-    expect(hidden.has(5)).toBe(false)
-  })
-
-  it('keeps the row when the window does not cover the Turn start', () => {
-    const nodes = [
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      turnProcess('p3', 7.9, 3),
-      executed('cmd', 21, 21, 10),
-    ]
-    const turns = new Map([[3, ['u10', 'a20', 'p3']]])
-    expect(hiddenSeqsOf(snap(nodes, turns)).has(7.9)).toBe(false)
-  })
-
-  it('keeps the row when the Turn index is incomplete or unusable', () => {
-    const nodes = [
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      turnProcess('p3', 7.9, 3, 8),
-      executed('cmd', 21, 21, 10),
-    ]
-    // An unloaded row: the index names a key the node store does not hold.
-    const unloaded = snap(nodes, new Map([[3, ['u10', 'a20', 'p3', 'gone']]]))
-    expect(hiddenSeqsOf(unloaded).has(7.9)).toBe(false)
-    // A malformed index degrades instead of failing the hiding that works.
-    const broken: HiddenChat = { ...snap(nodes), locations: { getTurn: () => { throw new Error('broken') } } }
-    expect(() => hiddenSeqsOf(broken)).not.toThrow()
-    expect(sorted(hiddenSeqsOf(broken))).toEqual([10, 20, 21])
-  })
-
-  it('keeps the row when its anchor value also addresses a live row', () => {
-    const nodes = [
-      viewNode('g7', 'goal-input', 7.9),
-      viewNode('u10', 'user', 10),
-      viewNode('a20', 'assistant', 20),
-      turnProcess('p3', 7.9, 3, 8),
-      executed('cmd', 21, 21, 10),
-    ]
-    const turns = new Map([[3, ['u10', 'a20', 'p3']]])
-    expect(hiddenSeqsOf(snap(nodes, turns)).has(7.9)).toBe(false)
-  })
-
-  it('does nothing without an executed rewind', () => {
-    const nodes = [turnProcess('p3', 7.9, 3, 8), viewNode('u10', 'user', 10)]
-    const turns = new Map([[3, ['u10', 'p3']]])
-    expect(hiddenSeqsOf(snap(nodes, turns)).size).toBe(0)
-  })
-
+describe('hiddenSeqsOf memoization', () => {
   it('memoizes one snapshot without handing the cache to a caller', () => {
     const nodes = [
       viewNode('u0', 'user', 0),

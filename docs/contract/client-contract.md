@@ -43,7 +43,7 @@ Each executed rewind cuts one span. Overlapping spans merge; adjacent spans stay
 separate, so new traffic between an earlier marker and a later target remains
 visible. A failed command, or a success without a marker, contributes neither a
 command row nor a cut. Group shells and Turn-process summaries are presentation
-constructs, not a stable part of this set; the visibility layer hides an emptied
+constructs and are not part of this set; the visibility layer hides an emptied
 summary directly.
 
 `targetSeqOfArgs(args)` extracts the first `@<digits>` target from a command's

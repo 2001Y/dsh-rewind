@@ -189,10 +189,13 @@ function rebuildOpenSessions(ui: UiConversationLike, sessions: SessionsLike | un
  */
 export class RewindVisibilityBuilder implements BuilderLike {
   private originals = new Map<string, ChatConversationViewNode>()
+  private commands = new Map<string, ChatConversationViewNode>()
   private byTurn = new Map<number, Map<string, ChatConversationViewNode>>()
   private turnProcess = new Map<number, string>()
   private derived = new Map<string, ChatConversationViewNode>()
-  private lastSignature = ''
+  private cuts: readonly RewindCut[] = []
+  private cutSignature = '[]'
+  private lastSignature = '[]'
 
   /** @param inner - the real Chat builder. */
   constructor(private readonly inner: BuilderLike) {}
@@ -203,27 +206,29 @@ export class RewindVisibilityBuilder implements BuilderLike {
 
   replace(input: BuilderInput): unknown {
     this.setAll(input.nodes)
-    this.lastSignature = this.signature()
+    this.lastSignature = this.cutSignature
     return this.inner.replace({ nodes: this.deriveAll(), timeline: input.timeline, ...changed(input) })
   }
 
   apply(input: BuilderApplyInput): unknown {
     const affected = new Set<number>()
+    let commandsChanged = false
     for (const node of input.upserts) {
       const previous = this.originals.get(node.key)
       const previousTurn = previous === undefined ? undefined : turnOf(previous)
       const nextTurn = turnOf(node)
       if (previousTurn !== undefined) affected.add(previousTurn)
       if (nextTurn !== undefined) affected.add(nextTurn)
+      if (previous?.kind === 'command' || node.kind === 'command') commandsChanged = true
       this.setOriginal(node)
     }
-    const signature = this.signature()
-    if (signature !== this.lastSignature) {
-      this.lastSignature = signature
+    if (commandsChanged) this.refreshCuts()
+    if (this.cutSignature !== this.lastSignature) {
+      this.lastSignature = this.cutSignature
       return this.inner.replace({ nodes: this.deriveAll(), timeline: input.timeline, ...changed(input) })
     }
 
-    const cuts = rewindCutsOf(this.originals.values())
+    const cuts = this.cuts
     const upserts = new Map<string, ChatConversationViewNode>()
     for (const node of input.upserts) upserts.set(node.key, this.deriveOne(node, cuts))
     // A Turn-process summary can change visibility when one of its members does.
@@ -249,16 +254,19 @@ export class RewindVisibilityBuilder implements BuilderLike {
 
   private setAll(nodes: readonly ChatConversationViewNode[]): void {
     this.originals.clear()
+    this.commands.clear()
     this.byTurn.clear()
     this.turnProcess.clear()
     this.derived.clear()
     for (const node of nodes) this.setOriginal(node)
+    this.refreshCuts()
   }
 
   private setOriginal(node: ChatConversationViewNode): void {
     const previous = this.originals.get(node.key)
     if (previous !== undefined) this.unindex(previous)
     this.originals.set(node.key, node)
+    if (node.kind === 'command') this.commands.set(node.key, node)
     const turn = turnOf(node)
     if (turn === undefined) return
     const members = this.byTurn.get(turn) ?? new Map<string, ChatConversationViewNode>()
@@ -268,6 +276,7 @@ export class RewindVisibilityBuilder implements BuilderLike {
   }
 
   private unindex(node: ChatConversationViewNode): void {
+    if (node.kind === 'command') this.commands.delete(node.key)
     const turn = turnOf(node)
     if (turn === undefined) return
     const members = this.byTurn.get(turn)
@@ -285,16 +294,15 @@ export class RewindVisibilityBuilder implements BuilderLike {
     }
   }
 
-  private signature(): string {
-    return JSON.stringify(
-      rewindCutsOf(this.originals.values())
-        .map(cut => `${cut.target}:${cut.marker}`)
-        .sort(),
+  private refreshCuts(): void {
+    this.cuts = rewindCutsOf(this.commands.values())
+    this.cutSignature = JSON.stringify(
+      this.cuts.map(cut => `${cut.target}:${cut.marker}`).sort(),
     )
   }
 
   private deriveAll(): readonly ChatConversationViewNode[] {
-    const cuts = rewindCutsOf(this.originals.values())
+    const cuts = this.cuts
     const derived = new Map<string, ChatConversationViewNode>()
     for (const node of this.originals.values()) derived.set(node.key, this.deriveOne(node, cuts))
     for (const [turn, key] of this.turnProcess) {

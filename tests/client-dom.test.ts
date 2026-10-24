@@ -121,7 +121,7 @@ afterEach(() => {
 describe('collectTargets (chat node × user action row → portal target)', () => {
   it('collects a durable target for a matched user row', () => {
     const actions = addRow('user', 'm1')
-    const targets = collectTargets(chatWith([['m1', userNode(5)]]), new Set())
+    const targets = collectTargets(chatWith([['m1', userNode(5)]]))
     expect(targets).toHaveLength(1)
     expect(targets[0]).toEqual({
       kind: 'durable',
@@ -137,7 +137,6 @@ describe('collectTargets (chat node × user action row → portal target)', () =
     const actions = addRow('steering', 'm2')
     const targets = collectTargets(
       chatWith([['m2', { kind: 'steering', anchorSeq: 9, data: { seq: 9, time: 9000, content: [{ type: 'text', text: 'st' }] } }]]),
-      new Set(),
     )
     expect(targets).toHaveLength(1)
     const target = targets[0]!
@@ -150,18 +149,18 @@ describe('collectTargets (chat node × user action row → portal target)', () =
 
   it('refuses a row whose actions container has no <button> (layout mismatch)', () => {
     addRow('user', 'm3', { withButton: false })
-    const targets = collectTargets(chatWith([['m3', userNode(6)]]), new Set())
+    const targets = collectTargets(chatWith([['m3', userNode(6)]]))
     expect(targets).toHaveLength(0)
   })
 
-  it('skips a withdrawn row (anchor seq already hidden)', () => {
+  it('skips a node absent from the visible order', () => {
     addRow('user', 'm4')
-    const targets = collectTargets(chatWith([['m4', userNode(7)]]), new Set([7]))
-    expect(targets).toHaveLength(0)
+    const chat = chatWith([['m4', userNode(7)]])
+    expect(collectTargets({ ...chat, order: [] })).toHaveLength(0)
   })
 
   it('collects nothing when a chat node has no matching DOM row', () => {
-    const targets = collectTargets(chatWith([['m5', userNode(8)]]), new Set())
+    const targets = collectTargets(chatWith([['m5', userNode(8)]]))
     expect(targets).toHaveLength(0)
   })
 })
@@ -174,7 +173,7 @@ describe('collectDurableTargets (subagent sessions are rewind-inert)', () => {
 
   it('collects the plain-session targets', () => {
     addRow('user', 's1')
-    const targets = collectDurableTargets({ subagent: null }, chatWith([['s1', userNode(11)]]), new Set())
+    const targets = collectDurableTargets({ subagent: null }, chatWith([['s1', userNode(11)]]))
     expect(targets).toHaveLength(1)
   })
 
@@ -183,13 +182,13 @@ describe('collectDurableTargets (subagent sessions are rewind-inert)', () => {
     const chat = chatWith([['s2', userNode(12)]])
     // Discriminating: identical chat snapshot and identical rendered row; only
     // the session kind differs, and the subagent one must yield no button.
-    expect(collectDurableTargets({ subagent: { address: { mode: 'continuable' } } }, chat, new Set())).toHaveLength(0)
-    expect(collectDurableTargets({ subagent: null }, chat, new Set())).toHaveLength(1)
+    expect(collectDurableTargets({ subagent: { address: { mode: 'continuable' } } }, chat)).toHaveLength(0)
+    expect(collectDurableTargets({ subagent: null }, chat)).toHaveLength(1)
   })
 
   it('collects nothing while the chat view is unavailable', () => {
     addRow('user', 's3')
-    expect(collectDurableTargets({ subagent: null }, undefined, new Set())).toHaveLength(0)
+    expect(collectDurableTargets({ subagent: null }, undefined)).toHaveLength(0)
   })
 })
 

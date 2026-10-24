@@ -54,7 +54,7 @@ import { createPortal } from 'react-dom'
 import { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionFace } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { UserMessageNode } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { ENGINE_COMMAND, hiddenSeqsOf, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, type ChatOf, type ChatWatch, type HiddenChat, type MessageImageRef } from './hidden.ts'
+import { ENGINE_COMMAND, isExecutedRewindCommand, messageAttachmentsAt, messageTextAt, type ChatOf, type ChatWatch, type HiddenChat, type MessageImageRef } from './hidden.ts'
 import type { RewindKey } from './locales.ts'
 import { messagePreviewOf } from './candidates.ts'
 import { knownCommandSeqs, openPopover, waitForCommand } from './popover.ts'
@@ -451,7 +451,7 @@ export function actionsContainerOf(row: HTMLElement | undefined): HTMLElement | 
  * Exported as a test seam — the DOM→targets pairing that drives the ↶ button
  * is otherwise only reachable through a full React portal render.
  */
-export function collectTargets(chat: HiddenChat, hiddenSeqs: ReadonlySet<number>): readonly PortalTarget[] {
+export function collectTargets(chat: HiddenChat): readonly PortalTarget[] {
   const rows = new Map<string, HTMLElement>()
   for (const element of document.querySelectorAll<HTMLElement>(USER_SEAT_SELECTOR)) {
     const key = element.dataset.chatAnchorKey
@@ -462,8 +462,6 @@ export function collectTargets(chat: HiddenChat, hiddenSeqs: ReadonlySet<number>
     const node = chat.nodes.get(key)
     if (node === undefined || (node.kind !== 'user' && node.kind !== 'steering')) continue
     const user = node.data as UserMessageNode
-    // A withdrawn row must not get a button (it is not part of the surface).
-    if (hiddenSeqs.has(node.anchorSeq ?? user.seq)) continue
     const row = rows.get(key)
     const actions = actionsContainerOf(row)
     // The actions row is the last child of the user row and holds the
@@ -510,15 +508,13 @@ export function isRewindInertSession(snapshot: SessionKindLike): boolean {
  * pure, directly testable decision.
  * @param snapshot - the session snapshot carrying the `subagent` cell.
  * @param chat - the session's chat snapshot, or undefined while unavailable.
- * @param hiddenSeqs - anchor seqs withdrawn by previous rewinds.
  */
 export function collectDurableTargets(
   snapshot: SessionKindLike,
   chat: HiddenChat | undefined,
-  hiddenSeqs: ReadonlySet<number>,
 ): readonly PortalTarget[] {
   if (chat === undefined || isRewindInertSession(snapshot)) return []
-  return collectTargets(chat, hiddenSeqs)
+  return collectTargets(chat)
 }
 
 /**
@@ -637,7 +633,7 @@ interface RewindPortalsProps extends RewindBridgeDeps {
  * synchronous full-transcript scan inside a commit microtask.
  *
  * The refresh is driven by the three inputs its targets are made of: the chat
- * snapshot (`hiddenSeqsOf`), the session's `inbox` projection (the pending
+ * snapshot's visible order, the session's `inbox` projection (the pending
  * occurrences — see `syncInboxSubscription`), and the DOM (row/actions mounts,
  * via the scoped observer).
  */
@@ -670,12 +666,9 @@ export function RewindPortals({ sessionId, sessionOf, chatOf, isMainViewSession,
       // = no view registered yet: skip the durable path entirely (pending
       // targets stay collectible).
       const chat = chatOf(session)
-      const hiddenSeqs = chat === undefined ? new Set<number>() : hiddenSeqsOf(chat)
-      // Probe build: DOM row hiding is deliberately disabled. Withdrawn rows
-      // must disappear because the visibility layer removed them from `order`;
-      // if they remain on screen, the private builder seam did not take effect.
-      // `hiddenSeqs` is still used to keep a rewind button off a withdrawn row.
-      const durable = collectDurableTargets(snapshot, chat, hiddenSeqs)
+      // The visibility layer already removed withdrawn nodes from `order`, so
+      // target collection reads the visible order directly.
+      const durable = collectDurableTargets(snapshot, chat)
       const next = [...durable, ...collectPendingTargets(snapshot, steeringItemsOf(inboxOf(session)?.['next-step']))]
       // Diff: no change → no re-render. A refresh can run several times for one
       // target set (chat publication, inbox, DOM catch-up); only an actual

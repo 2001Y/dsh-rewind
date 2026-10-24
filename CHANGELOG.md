@@ -14,7 +14,27 @@ and the release steps are documented in
 
 > DSH `>=0.2.1-rc.1 <0.3.0-0` supported
 
-**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.18.0...vNEXT
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.18.1...vNEXT
+
+## [0.18.1] - 2026-10-24
+
+> 适配 DSH `>=0.2.1-rc.1 <0.3.0-0`
+
+### 体验优化
+
+- **回退弹窗与宿主的回合用量面板对齐。** 尺寸与字阶取自该面板；随页面滚动与窗口缩放保持锚定，下方放不下时翻到上方；模式步去掉单独的取消页脚，只保留目标预览；文件模式改称「回退对话和文件」，两条提示各收成一行。@SiriLee
+- **回退按钮的提示与相邻复制按钮一致。** 两个 ↶ 按钮都改用宿主的 Tooltip 组件（side bottom），去掉原生 `title`；hover 填充只在支持 hover 的设备上生效。@SiriLee
+
+---
+
+> DSH `>=0.2.1-rc.1 <0.3.0-0` supported.
+
+### Improvements
+
+- **The rewind popover now matches the host's turn-usage panel.** It takes that panel's box and type scale, stays anchored through page scroll and window resize (flipping above when the bottom does not fit), drops the lone cancel footer on the mode step so only the target preview remains, renames the file mode to "Rewind conversation and files", and keeps each hint to one line. @SiriLee
+- **The rewind buttons' hint now matches the adjacent copy action.** Both ↶ buttons render through the host Tooltip (side bottom) instead of a native `title`, and the hover fill only applies on hover-capable devices. @SiriLee
+
+**Full Changelog**: https://github.com/SiriLee/dsh-rewind/compare/v0.18.0...v0.18.1
 
 ## [0.18.0] - 2026-10-21
 

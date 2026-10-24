@@ -68,40 +68,49 @@ export const STYLE = `
 
 .dsh-rewind-popover {
   position: fixed;
-  z-index: 1000;
-  width: 288px;
-  padding: 12px;
+  z-index: 1100;
+  box-sizing: border-box;
+  width: min(300px, calc(100vw - 24px));
+  padding: 16px;
   border: 0;
-  border-radius: var(--dsw-radius-md);
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-specific-menu, var(--dsw-alias-bg-layer-3));
   backdrop-filter: var(--dsw-menu-backdrop-filter);
   isolation: isolate;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  /* Elevated surface: match the menu cards' l2 scrollbar tokens. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   box-shadow: var(--dsw-elevation-prominent);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 12px;
+  line-height: 18px;
   color: var(--dsw-alias-label-primary);
 }
 .dsh-rewind-popover-title {
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
 }
 .dsh-rewind-popover-target {
-  margin: 4px 0 10px;
+  margin: 2px 0 10px;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
   word-break: break-all;
+  /* The full message sits above the popover; two lines are enough context. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 .dsh-rewind-popover-option {
   display: flex;
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  margin: 0 0 6px;
-  padding: 8px 10px;
-  border: 1px solid transparent;
+  margin: 0 0 2px;
+  padding: 6px 8px;
+  border: 0;
   border-radius: 8px;
   background: transparent;
   color: inherit;
@@ -121,7 +130,7 @@ export const STYLE = `
   outline: none;
 }
 .dsh-rewind-popover-option:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: default;
 }
 .dsh-rewind-popover-option-label {
@@ -154,15 +163,15 @@ export const STYLE = `
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  margin-top: 8px;
 }
 .dsh-rewind-popover-primary,
 .dsh-rewind-popover-ghost {
-  padding: 5px 12px;
+  height: 28px;
+  padding: 0 10px;
   border: none;
   border-radius: 8px;
   font: inherit;
-  font-size: 13px;
-  line-height: 18px;
   cursor: pointer;
 }
 .dsh-rewind-popover-primary {
@@ -173,7 +182,7 @@ export const STYLE = `
   background: var(--dsw-alias-button-primary-hover);
 }
 .dsh-rewind-popover-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: default;
 }
 .dsh-rewind-popover-ghost {
@@ -182,6 +191,9 @@ export const STYLE = `
 }
 .dsh-rewind-popover-ghost:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+}
+.dsh-rewind-popover-ghost:active {
+  background: var(--dsw-alias-interactive-bg-active);
 }
 
 .dsh-rewind-guard-hint {

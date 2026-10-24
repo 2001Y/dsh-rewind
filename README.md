@@ -16,7 +16,7 @@ DeepSeek Harness 插件：**一键就地回退对话到任意更早的用户消�
 
 ## 效果预览
 
-每条用户消息的操作行都有一个 **↶ 回退** 按钮。点击后弹出模式选择浮层——「**仅回退对话**」或「**回退对话和代码**」，后者会先展示文件变更清单再确认。还可以通过 **`/rewind` 和 `/undo` 命令**便捷地选择和回退。
+每条用户消息的操作行都有一个 **↶ 回退** 按钮。点击后弹出模式选择浮层——「**仅回退对话**」或「**回退对话和文件**」，后者会先展示文件变更清单再确认。还可以通过 **`/rewind` 和 `/undo` 命令**便捷地选择和回退。
 
 <table>
   <tr>
@@ -24,7 +24,7 @@ DeepSeek Harness 插件：**一键就地回退对话到任意更早的用户消�
     <td align="center"><img src="assets/screenshots/mode-popover.png" width="440" alt="模式选择浮层"><br><sub>模式选择浮层</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="assets/screenshots/impact-list.png" width="440" alt="影响清单"><br><sub>「回退对话和代码」影响清单</sub></td>
+    <td align="center"><img src="assets/screenshots/impact-list.png" width="440" alt="影响清单"><br><sub>「回退对话和文件」影响清单</sub></td>
     <td align="center"><img src="assets/screenshots/rewind-candidates.png" width="440" alt="/rewind 候选面板"><br><sub>/rewind 候选面板</sub></td>
   </tr>
 </table>
@@ -52,7 +52,7 @@ dsh plugin --profile <name> add dsh-rewind-plugin@<版本>
 ## 使用
 
 1. 在对话中找到要回退的那条用户消息，或输入 `/rewind`（或其别名 `/undo`）打开候选列表选择。
-2. **选中它。** 小浮层提供两种模式——「仅回退对话」或「回退对话和代码」。
+2. **选中它。** 小浮层提供两种模式——「仅回退对话」或「回退对话和文件」。
 3. 回退立即生效：对话回到目标消息当时的样子，目标消息的文本自动回填输入框——改完直接重发。
 
 **键盘操作**：候选列表与模式浮层均支持 ↑↓ 移动、Enter 确认、Esc 取消/返回。
@@ -159,7 +159,7 @@ rm <dsh home>/snapshot-cleanup-last-sweep.json
 
 ## 安全
 
-本插件只向会话日志追加回退标记事件，从不删除或改写已记录的历史。工作区文件仅在「回退对话和代码」时被改写，备份存储于 `<dsh home>/rewind-snapshots/`；还原以备份为唯一来源。不触碰你的 git 仓库，无网络请求，不访问任何凭据。对**长期不活跃**的会话，另有默认关闭的全局自动清理可整目录移除其快照，不影响活动会话与对话日志。完整安全模型：[SECURITY.md](SECURITY.md)。
+本插件只向会话日志追加回退标记事件，从不删除或改写已记录的历史。工作区文件仅在「回退对话和文件」时被改写，备份存储于 `<dsh home>/rewind-snapshots/`；还原以备份为唯一来源。不触碰你的 git 仓库，无网络请求，不访问任何凭据。对**长期不活跃**的会话，另有默认关闭的全局自动清理可整目录移除其快照，不影响活动会话与对话日志。完整安全模型：[SECURITY.md](SECURITY.md)。
 
 ## 开发
 

@@ -11,12 +11,12 @@ Conversation rewind for DeepSeek Harness: **rewind the conversation to any earli
 A deliberately focused plugin with one job: **rewind to any user message, no matter how far back, in place** — and conveniently **restore the files it changed** along the way.
 
 - **In-place rewind, no new session** — the target message and everything after it (replies, tool calls) are withdrawn from the model context *and* the rendered transcript, and the target's text is filled back into the composer for editing and re-sending. It all happens inside the original session: no new branch, no leftover copy.
-- **Conversation and code rewind together** — Claude Code-aligned behavior: files edited by the write tools are tracked and restored by the same rewind, and external changes to already-tracked files are restorable too. **Partial tracking, before-write backup, store only on change**, with no git dependency.
+- **Conversation and files rewind together** — Claude Code-aligned behavior: files edited by the write tools are tracked and restored by the same rewind, and external changes to already-tracked files are restorable too. **Partial tracking, before-write backup, store only on change**, with no git dependency.
 - **Safety guarantees** — the session log only ever appends rewind markers and is never deleted or rewritten; file backup and restore are hardened; tests are comprehensive, and maintenance continues across DSH upgrades. Security model: [SECURITY.md](SECURITY.md).
 
 ## Preview
 
-Every user message carries a **↶ rewind** button in its action row. Clicking it opens a mode-selection popover — "**rewind conversation only**" or "**rewind conversation and code**", the latter showing the file-change list for confirmation first. You can also pick and rewind conveniently via the **`/rewind` and `/undo` commands**.
+Every user message carries a **↶ rewind** button in its action row. Clicking it opens a mode-selection popover — "**rewind conversation only**" or "**rewind conversation and files**", the latter showing the file-change list for confirmation first. You can also pick and rewind conveniently via the **`/rewind` and `/undo` commands**.
 
 <table>
   <tr>
@@ -24,7 +24,7 @@ Every user message carries a **↶ rewind** button in its action row. Clicking i
     <td align="center"><img src="assets/screenshots/mode-popover.png" width="440" alt="Mode-selection popover"><br><sub>Mode-selection popover</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="assets/screenshots/impact-list.png" width="440" alt="Impact list"><br><sub>"Conversation and code" impact list</sub></td>
+    <td align="center"><img src="assets/screenshots/impact-list.png" width="440" alt="Impact list"><br><sub>"Conversation and files" impact list</sub></td>
     <td align="center"><img src="assets/screenshots/rewind-candidates.png" width="440" alt="/rewind candidate picker"><br><sub>/rewind candidate picker</sub></td>
   </tr>
 </table>
@@ -55,7 +55,7 @@ then install the new one.
 ## Usage
 
 1. Find the user message you want to rewind to in the conversation, or type `/rewind` (or its alias `/undo`) to open the candidate picker.
-2. **Select it.** A small popover offers the two modes — "conversation only" or "conversation and code".
+2. **Select it.** A small popover offers the two modes — "conversation only" or "conversation and files".
 3. The rewind takes effect immediately: the conversation returns to how it looked at the target message, and the target message's text is filled back into the composer — edit and re-send.
 
 **Keyboard**: both the candidate picker and the mode popover support ↑↓ to move, Enter to confirm, Esc to cancel/back.
@@ -178,7 +178,7 @@ withdrew should consume the stable, locale-independent helpers exported from
 
 ## Security
 
-This plugin only appends rewind-marker events to the session log; it never deletes or rewrites logged history. Workspace files are written only when you choose "conversation and code"; backups are stored under `<dsh home>/rewind-snapshots/`; restores draw only from those backups. It never touches your git repository, makes no network requests, and accesses no credentials. For sessions you've left inactive for a long time, a global auto-cleanup (off by default) can remove their snapshot directory in whole, leaving the active session and the chat log untouched. Full security model: [SECURITY.md](SECURITY.md).
+This plugin only appends rewind-marker events to the session log; it never deletes or rewrites logged history. Workspace files are written only when you choose "conversation and files"; backups are stored under `<dsh home>/rewind-snapshots/`; restores draw only from those backups. It never touches your git repository, makes no network requests, and accesses no credentials. For sessions you've left inactive for a long time, a global auto-cleanup (off by default) can remove their snapshot directory in whole, leaving the active session and the chat log untouched. Full security model: [SECURITY.md](SECURITY.md).
 
 ## Development
 

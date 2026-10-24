@@ -48,6 +48,9 @@ export interface PopoverOptions {
 /** The single live popover element, or null when closed. */
 let popoverEl: HTMLElement | null = null
 
+/** The trigger of the live popover, so its `aria-expanded` can be cleared. */
+let popoverAnchor: HTMLElement | null = null
+
 let disposeOutside: (() => void) | null = null
 
 /** The session whose popover currently holds the keyboard, or null. */
@@ -64,6 +67,18 @@ export function registerComposerFocuser(focus: (sessionId: string) => void): voi
   composerFocuser = focus
 }
 
+/** Announce that `anchor` now owns the popover. */
+function markOpen(anchor: HTMLElement): void {
+  popoverAnchor = anchor
+  anchor.setAttribute('aria-expanded', 'true')
+}
+
+/** Clear the trigger's expanded state; safe when nothing is open. */
+function markClosed(): void {
+  popoverAnchor?.setAttribute('aria-expanded', 'false')
+  popoverAnchor = null
+}
+
 /** Close the current popover, if any, handing the keyboard back to its composer. */
 export function closePopover(): void {
   if (popoverEl !== null) {
@@ -74,6 +89,7 @@ export function closePopover(): void {
     disposeOutside()
     disposeOutside = null
   }
+  markClosed()
   const sessionId = liveSessionId
   liveSessionId = null
   if (sessionId !== null) {
@@ -83,15 +99,6 @@ export function closePopover(): void {
       // Focus is presentation; the popover is already gone.
     }
   }
-}
-
-/** Format the target line (seq · HH:MM · preview). */
-function formatTarget(t: Translate, seq: number, time: number, preview: string): string {
-  const d = new Date(time)
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  const previewText = preview.length > 0 ? preview : t('popover.noText')
-  return `seq ${seq} · ${hh}:${mm} · ${previewText}`
 }
 
 /** Find the newest rewind command node matching a predicate. */
@@ -238,7 +245,7 @@ interface DurablePopoverOptions {
  * Reuses the outcome already fetched when the popover opened — running the
  * probe again here would repeat the disk comparison.
  */
-function renderImpactStep(root: HTMLElement, opts: DurablePopoverOptions, back: () => void, cached?: PreviewOutcome): void {
+function renderImpactStep(root: HTMLElement, opts: DurablePopoverOptions, back: () => void, reposition: () => void, cached?: PreviewOutcome): void {
   const { session, seq, t } = opts
   const impact = el('div', CLASS.popoverImpact, t('popover.impact.loading'))
   const actions = el('div', CLASS.popoverActions)
@@ -257,6 +264,7 @@ function renderImpactStep(root: HTMLElement, opts: DurablePopoverOptions, back: 
   actions.append(confirm)
   root.replaceChildren(impact, actions)
   focusFirst(root)
+  reposition()
 
   void (async () => {
     const outcome = cached ?? await previewImpact(session.sessionId, seq)
@@ -295,7 +303,7 @@ function renderImpactStep(root: HTMLElement, opts: DurablePopoverOptions, back: 
     })
   })().catch(() => {
     impact.textContent = t('popover.impact.failed', { message: 'unexpected error' })
-  })
+  }).finally(() => { reposition() })
 }
 
 /**
@@ -312,16 +320,48 @@ interface PopoverShell {
 
 /** Mount the shared popover chrome around `root` (durable and pending variants). */
 function mountShell(root: HTMLElement, anchor: HTMLElement, onKeyDown: (event: KeyboardEvent) => void): PopoverShell {
-  /** Position below the anchor (right-aligned), flipping above near the edge. */
+  const margin = 12
+  const gap = 4
+
+  /** Which side was chosen on open; later movement must not make it jump across. */
+  let flippedAbove: boolean | null = null
+
+  /** Position below the anchor (right-aligned), or above when that side fits. */
   const position = (): void => {
+    if (!root.isConnected) return
+    if (!anchor.isConnected) {
+      if (popoverEl === root) closePopover()
+      return
+    }
     const rect = anchor.getBoundingClientRect()
-    const gap = 4
     const height = root.offsetHeight
-    const top = rect.bottom + gap + height <= window.innerHeight - 8
-      ? rect.bottom + gap
-      : Math.max(8, rect.top - gap - height)
+    if (flippedAbove === null) {
+      flippedAbove = rect.bottom + gap + height > window.innerHeight - margin
+    }
+    const top = flippedAbove
+      ? Math.max(margin, rect.top - gap - height)
+      : Math.min(Math.max(margin, rect.bottom + gap), Math.max(margin, window.innerHeight - margin - height))
     root.style.top = `${Math.round(top)}px`
-    root.style.left = `${Math.round(Math.min(rect.right, window.innerWidth - 8 - root.offsetWidth))}px`
+    root.style.left = `${Math.round(Math.max(margin, Math.min(rect.right, window.innerWidth - margin - root.offsetWidth)))}px`
+  }
+
+  let frame = 0
+  /** Coalesce scroll/resize/observer bursts into one position write per frame. */
+  const schedule = (): void => {
+    if (typeof requestAnimationFrame !== 'function') {
+      position()
+      return
+    }
+    if (frame !== 0) return
+    frame = requestAnimationFrame(() => {
+      frame = 0
+      position()
+    })
+  }
+  /** The impact list scrolls on its own; only page movement moves the anchor. */
+  const onScroll = (event: Event): void => {
+    if (event.target instanceof Node && root.contains(event.target)) return
+    schedule()
   }
 
   const onPointerDown = (event: PointerEvent): void => {
@@ -337,14 +377,23 @@ function mountShell(root: HTMLElement, anchor: HTMLElement, onKeyDown: (event: K
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown, true)
   }, 0)
+
+  document.body.append(root)
+  position()
+  const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => { schedule() })
+  observer?.observe(root)
+  window.addEventListener('scroll', onScroll, true)
+  window.addEventListener('resize', schedule)
+
   const dispose = (): void => {
     clearTimeout(deferred)
     document.removeEventListener('pointerdown', onPointerDown)
     document.removeEventListener('keydown', onKeyDown, true)
+    window.removeEventListener('scroll', onScroll, true)
+    window.removeEventListener('resize', schedule)
+    observer?.disconnect()
+    if (frame !== 0) cancelAnimationFrame(frame)
   }
-
-  document.body.append(root)
-  position()
   return { position, dispose }
 }
 
@@ -359,6 +408,7 @@ function openRetractPopover(opts: PopoverOptions): void {
   closePopover()
   const { preview, anchor, t, retract, onRetract } = opts
   if (retract === undefined || onRetract === undefined) return
+  markOpen(anchor)
 
   const root = el('div', CLASS.popover)
   root.setAttribute('role', 'dialog')
@@ -425,6 +475,7 @@ export function openPopover(opts: PopoverOptions): void {
   const { session, seq, time, preview, anchor, t } = opts
   const onRewind = opts.onRewind
   if (seq === undefined || time === undefined || onRewind === undefined) return
+  markOpen(anchor)
   // Narrowed durable identity: the pending variant never reaches this flow.
   const durableOpts: DurablePopoverOptions = { session, seq, time, preview, anchor, t, onRewind }
 
@@ -432,7 +483,7 @@ export function openPopover(opts: PopoverOptions): void {
   root.setAttribute('role', 'dialog')
   root.setAttribute('aria-label', t('popover.title'))
 
-  /** Availability of the "rewind conversation and code" mode, resolved from a preview. */
+  /** Availability of the "rewind conversation and files" mode, resolved from a preview. */
   type BothState =
     | { state: 'loading' }
     | { state: 'hasChanges' }
@@ -444,12 +495,15 @@ export function openPopover(opts: PopoverOptions): void {
 
   /** Current step: Esc acts as cancel on the modes step, as back on impact. */
   let step: 'modes' | 'impact' = 'modes'
+  /** Assigned once the shell mounts; the first render runs before that. */
+  let reposition = (): void => {}
 
   const renderModes = (): void => {
     step = 'modes'
+    const previewText = preview.length > 0 ? preview : t('popover.noText')
     const children: HTMLElement[] = [
       el('div', CLASS.popoverTitle, t('popover.title')),
-      el('div', CLASS.popoverTarget, formatTarget(t, seq, time, preview)),
+      el('div', CLASS.popoverTarget, previewText),
       modeOption(t('popover.chat'), t('popover.chat.hint'), () => {
         closePopover()
         durableOpts.onRewind('chat')
@@ -474,22 +528,15 @@ export function openPopover(opts: PopoverOptions): void {
       if (bothState.state === 'loading') option.disabled = true
       children.push(option)
     }
-    const actions = el('div', CLASS.popoverActions)
-    const cancel = document.createElement('button')
-    cancel.type = 'button'
-    cancel.className = CLASS.popoverGhost
-    cancel.textContent = t('popover.cancel')
-    cancel.addEventListener('click', closePopover)
-    actions.append(cancel)
-    children.push(actions)
     root.replaceChildren(...children)
     focusFirst(root)
+    reposition()
   }
 
   /** Move to the impact step (its back/Esc returns to the modes step). */
   const renderImpact = (): void => {
     step = 'impact'
-    renderImpactStep(root, durableOpts, renderModes, impactOutcome)
+    renderImpactStep(root, durableOpts, renderModes, reposition, impactOutcome)
   }
 
   const onKeyDown = (event: KeyboardEvent): void => {
@@ -517,6 +564,7 @@ export function openPopover(opts: PopoverOptions): void {
 
   renderModes()
   const shell = mountShell(root, anchor, onKeyDown)
+  reposition = shell.position
   popoverEl = root
   disposeOutside = shell.dispose
 
@@ -537,10 +585,8 @@ export function openPopover(opts: PopoverOptions): void {
       bothState = { state: 'error', message: outcome?.kind === 'error' ? outcome.text : 'preview request timed out' }
     }
     renderModes()
-    shell.position()
   })().catch(() => {
     bothState = { state: 'error', message: 'unexpected error' }
     renderModes()
-    shell.position()
   })
 }

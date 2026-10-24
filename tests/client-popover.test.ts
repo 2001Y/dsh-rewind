@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  *
  * Modes-step probes for `openPopover` (SiriLee/dsh-rewind#26). The background
- * impact probe resolves the "rewind conversation and code" entry: it must
+ * impact probe resolves the "rewind conversation and files" entry: it must
  * ALWAYS settle the step. A failed RPC call has to surface the reason — never
  * leave the step showing "checking file changes…" forever with a permanently
  * disabled entry, which is the invisible failure the issue reported.
@@ -131,6 +131,13 @@ describe('closePopover (the unload teardown)', () => {
     closePopover()
     expect(document.querySelector(`.${CLASS.popover}`)).toBeNull()
     expect(stealsArrowDown()).toBe(false)
+  })
+
+  it('marks the trigger expanded while open and clears it on close', () => {
+    open()
+    expect(document.body.getAttribute('aria-expanded')).toBe('true')
+    closePopover()
+    expect(document.body.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('hands the keyboard back to the composer it took it from', async () => {

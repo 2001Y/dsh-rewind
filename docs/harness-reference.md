@@ -49,10 +49,9 @@ the canonical source; this block only adds the finer-grained client-side files
 and packaging entries.
 
 ```
-src/client/index.ts     client plugin: /rewind command decoration + per-message ↶ button portals;
-                        re-exports the client contract (hiddenSeqsOf / targetSeqOfArgs / HiddenChat)
+src/client/index.ts     client plugin: /rewind command decoration + per-message ↶ button portals
 src/client/popover.ts   mode-selection popover (both-mode impact confirm)
-src/client/hidden.ts    withdrawn-span computation (hiddenSeqsOf), pure
+src/client/hidden.ts    Chat-snapshot readers and executed-rewind cut derivation, pure
 src/client/candidates.ts  rewind candidate listing (rewindCandidatesOf), pure
 src/client/pending.ts   pending-steering bubble ↔ inbox next-step (user-sourced) matching, pure
 src/client/portals.tsx  per-user-message ↶ button portals (React bridge into the actions row)

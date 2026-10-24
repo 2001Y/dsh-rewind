@@ -10,8 +10,7 @@
  * catch-up channel that masked its absence.
  *
  * Compilation: typechecked by `tsconfig.client-test.json` (client surface +
- * JSX), excluded from `tsconfig.json` (host, no JSX) — see the neighbouring
- * `client-contract.test.ts` comment.
+ * JSX), excluded from `tsconfig.json` (host, no JSX).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, createElement, type ReactNode } from 'react'

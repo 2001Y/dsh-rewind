@@ -45,9 +45,6 @@ npm run verify:host    # end-to-end host verification (full check suite)
   findings) must update the relevant doc in the same PR:
   - **`docs/format.md`** — any change to the on-disk format (bump version,
     migrate, or move the state root; no silent re-interpretation).
-  - **`docs/contract/client-contract.md`** — any change to the meaning of
-    `@<seq>` / `sourceEventSeq` / `data-dsh-rewind-hidden`; breaking a listed
-    stability tier is a minor/major version bump.
   - **`docs/compat/audit.md`** — new compatibility findings (it is the single
     source of truth; other docs link to it instead of restating).
   - **`SECURITY.md`** — any change to the security model (trust boundary,

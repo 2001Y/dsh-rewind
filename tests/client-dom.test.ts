@@ -12,8 +12,7 @@
  * carry no `data-time-hover-root` marker.
  *
  * Compilation: typechecked by `tsconfig.client-test.json` (client surface +
- * JSX), excluded from `tsconfig.json` (host, no JSX) — see the neighbouring
- * `client-contract.test.ts` comment.
+ * JSX), excluded from `tsconfig.json` (host, no JSX).
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChatConversationViewNode, HiddenChat } from '../src/client/hidden.ts'

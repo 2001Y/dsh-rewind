@@ -138,20 +138,6 @@ if (bundle.includes('__DSH_REWIND_VERSION__') || bundle.includes('__DSH_REWIND_B
 if (!bundle.includes('loaded v') || !bundle.includes('(build ')) {
   throw new Error('client bundle missing the boot build-identity line')
 }
-// Public contract exports (docs/contract/client-contract.md) must stay reachable.
-const exportStart = clientSource.indexOf('__export(index_exports')
-if (exportStart === -1) throw new Error('client bundle lost its export block (esbuild format changed?)')
-const clientExports = clientSource.slice(exportStart)
-for (const needle of ['hiddenSeqsOf', 'targetSeqOfArgs']) {
-  if (!clientExports.includes(`${needle}: () => ${needle}`)) {
-    throw new Error(`client bundle missing public contract export ${needle}`)
-  }
-}
-// The type re-exports must survive too (consumers import HiddenChat).
-const clientDts = await readFile(join(ROOT, 'lib/types/client/index.d.ts'), 'utf8')
-if (!clientDts.includes("export { hiddenSeqsOf, targetSeqOfArgs, type HiddenChat } from './hidden.ts'")) {
-  throw new Error('client declarations missing public contract re-export')
-}
 // Declarations must exist (published tarball carries them).
 for (const dts of ['lib/types/index.d.ts', 'lib/types/client/index.d.ts']) {
   await readFile(join(ROOT, dts), 'utf8')

@@ -12,7 +12,6 @@ index/navigation entry point.
 | `format.md` | Durable on-disk format spec (checkpoint entries + restore journals) | maintainers |
 | `harness-reference.md` | DeepSeek Harness interface reference + plugin source layout | maintainers |
 | `snapshot-auto-cleanup.md` | Global snapshot auto-cleanup policy and command (`.zh` mirror) | users / maintainers |
-| `contract/client-contract.md` | Rewind visibility contract for third-party DOM plugins (`.zh` mirror) | integrators |
 | `compat/audit.md` | Compatibility audit: invariants, open upstream gaps, probe matrix | maintainers |
 | `compat/tracking-boundary.md` | Which files a rewind restores: the tracking boundary (`.zh` mirror) | users / maintainers |
 | `compat/diagnostics.md` | Browser diagnostics (anomaly alerts; verbose switch gates the startup identity line) (`.zh` mirror) | users / maintainers |
@@ -24,9 +23,9 @@ Repo-root docs outside `docs/`: `SECURITY.md`, `CONTRIBUTING.md`, and
 
 ## Conventions
 
-- Bilingual docs use the `.md` / `.zh.md` file split (e.g. `contract/client-contract.md`
-  + `contract/client-contract.zh.md`); the root pair is the exception — `README.md` is
-  Chinese, `README.en.md` English.
+- Bilingual docs use the `.md` / `.zh.md` file split (e.g.
+  `snapshot-auto-cleanup.md` + `snapshot-auto-cleanup.zh.md`); the root pair is
+  the exception — `README.md` is Chinese, `README.en.md` English.
 - `compat/audit.md` is the single source of truth for compatibility conclusions;
   other docs link to it instead of restating them.
 - Cross-links are relative.

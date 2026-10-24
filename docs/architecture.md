@@ -121,10 +121,10 @@ pruneStale            cross-session auto-cleanup (default off): whole
   `compat-interop.test.ts` / `compat-gaps.test.ts` probe harness behavior and pin findings in
   `docs/compat/audit.md`; `scripts/verify-host.mjs` runs a real end-to-end
   rewind + `/compact` chain (the full check suite).
-- **Stable machine channel for third parties**: `dsh-rewind-plugin/client`
-  exports the pure hidden-span computation (semver-protected). Withdrawn nodes
-  leave the Chat flow through the builder's `visibility` input; DOM coupling is
-  limited to the structurally-typed portal registration.
+- **No public client contract**: the client entry exposes only the plugin
+  (`apply` / `inject` / `name`). Withdrawn nodes leave the Chat flow through the
+  builder's `visibility` input; DOM coupling is limited to the structurally
+  typed portal registration.
 
 ## Roadmap
 

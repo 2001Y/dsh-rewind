@@ -23,36 +23,14 @@
  * not in that channel (see docs/compat/audit.md, RU-I18N), and no host command
  * OUTPUT is localized for anyone, so this dictionary is what carries it.
  *
- * English is the key-set source of truth; zh and ja are checked complete
- * against it.
+ * English is the canonical key set: every other dictionary is typed complete
+ * against it, and the tests compare every dictionary's template placeholders
+ * with it. Adding a language is one dictionary plus one entry in `HOST_DICTS`.
  *
  * @module dsh-rewind/locales
  */
 
-/** Host-side supported locale ids: the harness's shipped locales, plus ja. */
-export type HostLocaleId = 'zh' | 'en' | 'ja'
-
-/**
- * The locale a durable preference selects from this plugin's dictionaries.
- *
- * The harness accepts any BCP 47-style id while this plugin ships only `zh`,
- * `en` and `ja`, so the PRIMARY subtag decides (`zh-CN` → zh) and everything
- * else — an unset preference, an unsupported language, a non-string value —
- * is English. The client's own selection tries the full tag before the
- * primary subtag; over these dictionaries the outcome is the same.
- *
- * @param preference - the raw `locale.preference` value.
- * @returns the dictionary this plugin renders its host copy in.
- */
-export function preferredLocale(preference: unknown): HostLocaleId {
-  if (typeof preference !== 'string') return 'en'
-  const primary = preference.toLowerCase().split('-')[0]
-  if (primary === 'zh') return 'zh'
-  if (primary === 'ja') return 'ja'
-  return 'en'
-}
-
-/** English dictionary — the key-set source of truth (neutral default). */
+/** English dictionary — the canonical key set (neutral default). */
 export const en = {
   'plan.skip': '  not restored: {path} ({reason})',
   'skipReason.oversized': 'over the {limit} backup limit, so the recorded state predates untracked edits',
@@ -199,14 +177,50 @@ export const ja: Record<HostKey, string> = {
   'cleanup.usage': '使い方：\n  /snapshot-auto-cleanup                 状態を表示\n  /snapshot-auto-cleanup on|off          自動クリーンアップの有効/無効\n  /snapshot-auto-cleanup max-age <日数>  アイドルしきい値を設定\n  /snapshot-auto-cleanup run [--apply]   ドライラン、または --apply で実行\n  /snapshot-auto-cleanup run --current [--apply]   ドライラン／現在のセッションのスナップショットを消去',
 }
 
-/** The host dictionaries keyed by locale id. */
-export const HOST_DICTS: Record<HostLocaleId, Record<HostKey, string>> = { en, zh, ja }
+/**
+ * Every language this plugin ships a host dictionary for. English is first as
+ * the canonical dictionary; the rest follow the harness's language order.
+ * Adding a language is one dictionary above plus one entry here — the locale-id
+ * type, the preference resolver, and the tests all derive from this map.
+ */
+export const HOST_DICTS = { en, zh, ja } satisfies Record<string, Record<HostKey, string>>
+
+/** Host-side supported locale ids (the registry keys). */
+export type HostLocaleId = keyof typeof HOST_DICTS
+
+/** Neutral default, matching the harness's `FALLBACK_LOCALE`. */
+export const DEFAULT_HOST_LOCALE = 'en' as const satisfies HostLocaleId
+
+/** Whether a normalized tag names a shipped host dictionary. */
+function isHostLocale(tag: string): tag is HostLocaleId {
+  return Object.hasOwn(HOST_DICTS, tag)
+}
+
+/**
+ * The locale a durable preference selects from this plugin's dictionaries.
+ *
+ * The harness accepts any BCP 47-style id while this plugin ships a fixed set,
+ * so the preference is matched against the registry: the full tag first
+ * (case-insensitively), then its primary subtag (`xx-YY` → `xx`), mirroring the
+ * client runtime. Anything else — an unset preference, an unsupported language,
+ * a non-string value — is the neutral default.
+ *
+ * @param preference - the raw `locale.preference` value.
+ * @returns the dictionary this plugin renders its host copy in.
+ */
+export function preferredLocale(preference: unknown): HostLocaleId {
+  if (typeof preference !== 'string') return DEFAULT_HOST_LOCALE
+  const tag = preference.toLowerCase()
+  if (isHostLocale(tag)) return tag
+  const primary = tag.split('-')[0]
+  return primary !== undefined && isHostLocale(primary) ? primary : DEFAULT_HOST_LOCALE
+}
 
 /**
  * Render one dictionary key with `{name}` template interpolation. Unknown
  * params are ignored; a missing key falls back to the raw key so a dictionary
  * gap is visible instead of blank.
- * @param lang - the active locale.
+ * @param lang - the active locale id.
  * @param key - the dictionary key.
  * @param params - `{name}` substitution values.
  */

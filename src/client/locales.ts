@@ -1,61 +1,6 @@
 /** `rewind` namespace dictionaries for the client plugin. */
 
-/** Simplified Chinese dictionary (the key-set source of truth). */
-export const zh = {
-  'button.aria': '回退到此消息',
-  'button.title': '回退',
-  'button.retract.aria': '回退到此插话消息',
-  'button.retract.title': '回退',
-  'popover.title': '回退到这条消息',
-  'popover.noText': '（无文本）',
-  'popover.retract.title': '回退到这条插话消息',
-  'popover.retract.target': '插话中 · {preview}',
-  'popover.retract.hint': '撤回这条及之后的插话消息，不打断当前生成',
-  'popover.retract.confirm': '确认回退',
-  'popover.chat': '仅回退对话',
-  'popover.chat.hint': '仅回退上下文，不动工作区文件',
-  'popover.both': '回退对话和文件',
-  'popover.both.hint': '回退上下文并还原工作区文件',
-  'popover.checking': '正在检查文件变更…',
-  'popover.noChanges': '无可还原的文件变更',
-  'popover.backupDisabled': '快照备份已关闭，还原可能不充分',
-  'popover.cancel': '取消',
-  'popover.impact.loading': '正在获取影响清单…',
-  'popover.impact.failed': '无法获取影响清单：{message}',
-  'popover.impact.none': '目标之后没有跟踪到的写类变更，无需还原文件。',
-  'popover.impact.restore': '还原 {path}',
-  'popover.impact.delete': '删除 {path}',
-  'popover.confirm': '确认回退',
-  'popover.back': '返回',
-  'backup.title': '快照备份',
-  'backup.on': '开启后自动创建文件快照，用于文件还原。',
-  'backup.off': '关闭后不再创建文件快照；关闭期间的文件改动无法还原。',
-  'cleanup.auto': '自动清理',
-  'cleanup.auto.on': '开启后按不活跃天数自动清理过期会话快照。',
-  'cleanup.auto.off': '关闭后不会自动清理快照。',
-  'cleanup.maxAge': '不活跃时间（天）',
-  'cleanup.maxAge.hint': '超过该天数未活动的会话快照会被清理。',
-  'cleanup.invalid': '请填正整数；留空表示使用默认值',
-  'cleanup.overridden': '已覆盖',
-  'cleanup.reset': '恢复默认',
-  'cleanup.save': '保存',
-  'cleanup.saving': '保存中…',
-  'cleanup.saveFailed': '本部署没有接受这些值，已保留供你修改',
-  'cleanup.readonly': '本部署的设置为只读',
-  'cleanup.unavailable': '该插件当前未加载，暂时无法配置',
-} satisfies Record<string, string>
-
-/** The rewind namespace key union. */
-export type RewindKey = keyof typeof zh
-
-declare module '@deepseek-ai/dsh-client-ui-slots' {
-  interface LocaleNamespaceMap {
-    /** The in-place rewind controls' copy. */
-    rewind: RewindKey
-  }
-}
-
-/** English dictionary, checked complete against the zh key set. */
+/** English dictionary — the canonical key set (the harness fallback language). */
 export const en = {
   'button.aria': 'Rewind to this message',
   'button.title': 'Rewind',
@@ -98,10 +43,65 @@ export const en = {
   'cleanup.saveFailed': 'The deployment did not accept these values; they were left for you to correct',
   'cleanup.readonly': 'This deployment stores settings read-only',
   'cleanup.unavailable': 'This plugin is not loaded, so it cannot be configured right now',
-} satisfies Record<RewindKey, string>
+} satisfies Record<string, string>
 
-/** Japanese dictionary, checked complete against the zh key set. */
-export const ja = {
+/** The rewind namespace key union. */
+export type RewindKey = keyof typeof en
+
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** The in-place rewind controls' copy. */
+    rewind: RewindKey
+  }
+}
+
+/** Chinese dictionary, checked complete against the en key set. */
+export const zh: Record<RewindKey, string> = {
+  'button.aria': '回退到此消息',
+  'button.title': '回退',
+  'button.retract.aria': '回退到此插话消息',
+  'button.retract.title': '回退',
+  'popover.title': '回退到这条消息',
+  'popover.noText': '（无文本）',
+  'popover.retract.title': '回退到这条插话消息',
+  'popover.retract.target': '插话中 · {preview}',
+  'popover.retract.hint': '撤回这条及之后的插话消息，不打断当前生成',
+  'popover.retract.confirm': '确认回退',
+  'popover.chat': '仅回退对话',
+  'popover.chat.hint': '仅回退上下文，不动工作区文件',
+  'popover.both': '回退对话和文件',
+  'popover.both.hint': '回退上下文并还原工作区文件',
+  'popover.checking': '正在检查文件变更…',
+  'popover.noChanges': '无可还原的文件变更',
+  'popover.backupDisabled': '快照备份已关闭，还原可能不充分',
+  'popover.cancel': '取消',
+  'popover.impact.loading': '正在获取影响清单…',
+  'popover.impact.failed': '无法获取影响清单：{message}',
+  'popover.impact.none': '目标之后没有跟踪到的写类变更，无需还原文件。',
+  'popover.impact.restore': '还原 {path}',
+  'popover.impact.delete': '删除 {path}',
+  'popover.confirm': '确认回退',
+  'popover.back': '返回',
+  'backup.title': '快照备份',
+  'backup.on': '开启后自动创建文件快照，用于文件还原。',
+  'backup.off': '关闭后不再创建文件快照；关闭期间的文件改动无法还原。',
+  'cleanup.auto': '自动清理',
+  'cleanup.auto.on': '开启后按不活跃天数自动清理过期会话快照。',
+  'cleanup.auto.off': '关闭后不会自动清理快照。',
+  'cleanup.maxAge': '不活跃时间（天）',
+  'cleanup.maxAge.hint': '超过该天数未活动的会话快照会被清理。',
+  'cleanup.invalid': '请填正整数；留空表示使用默认值',
+  'cleanup.overridden': '已覆盖',
+  'cleanup.reset': '恢复默认',
+  'cleanup.save': '保存',
+  'cleanup.saving': '保存中…',
+  'cleanup.saveFailed': '本部署没有接受这些值，已保留供你修改',
+  'cleanup.readonly': '本部署的设置为只读',
+  'cleanup.unavailable': '该插件当前未加载，暂时无法配置',
+}
+
+/** Japanese dictionary, checked complete against the en key set. */
+export const ja: Record<RewindKey, string> = {
   'button.aria': 'このメッセージまで巻き戻す',
   'button.title': '巻き戻し',
   'button.retract.aria': 'この保留中のメッセージまで巻き戻す',
@@ -143,4 +143,11 @@ export const ja = {
   'cleanup.saveFailed': 'このデプロイメントでは値が受け付けられませんでした。修正できるよう入力は保持されています',
   'cleanup.readonly': 'このデプロイメントでは設定が読み取り専用です',
   'cleanup.unavailable': 'このプラグインは現在読み込まれていないため、設定できません',
-} satisfies Record<RewindKey, string>
+}
+
+/**
+ * Every dictionary this plugin ships, canonical first. Registration takes this
+ * map as a whole, so shipping another language is one dictionary above plus one
+ * entry here — no wiring change in `index.ts`.
+ */
+export const CLIENT_DICTS = { en, zh, ja }

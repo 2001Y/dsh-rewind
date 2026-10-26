@@ -23,29 +23,33 @@
  * not in that channel (see docs/compat/audit.md, RU-I18N), and no host command
  * OUTPUT is localized for anyone, so this dictionary is what carries it.
  *
- * English is the key-set source of truth; zh is checked complete against it.
+ * English is the key-set source of truth; zh and ja are checked complete
+ * against it.
  *
  * @module dsh-rewind/locales
  */
 
-/** Host-side supported locale ids, mirroring the harness's shipped locales. */
-export type HostLocaleId = 'zh' | 'en'
+/** Host-side supported locale ids: the harness's shipped locales, plus ja. */
+export type HostLocaleId = 'zh' | 'en' | 'ja'
 
 /**
  * The locale a durable preference selects from this plugin's dictionaries.
  *
- * The harness accepts any BCP 47-style id while this plugin ships only `zh` and
- * `en`, so the PRIMARY subtag decides (`zh-CN` → zh) and everything else — an
- * unset preference, an unsupported language, a non-string value — is English.
- * The client's own selection tries the full tag before the primary subtag; over
- * these two dictionaries the outcome is the same.
+ * The harness accepts any BCP 47-style id while this plugin ships only `zh`,
+ * `en` and `ja`, so the PRIMARY subtag decides (`zh-CN` → zh) and everything
+ * else — an unset preference, an unsupported language, a non-string value —
+ * is English. The client's own selection tries the full tag before the
+ * primary subtag; over these dictionaries the outcome is the same.
  *
  * @param preference - the raw `locale.preference` value.
  * @returns the dictionary this plugin renders its host copy in.
  */
 export function preferredLocale(preference: unknown): HostLocaleId {
   if (typeof preference !== 'string') return 'en'
-  return preference.toLowerCase().split('-')[0] === 'zh' ? 'zh' : 'en'
+  const primary = preference.toLowerCase().split('-')[0]
+  if (primary === 'zh') return 'zh'
+  if (primary === 'ja') return 'ja'
+  return 'en'
 }
 
 /** English dictionary — the key-set source of truth (neutral default). */
@@ -147,8 +151,56 @@ export const zh: Record<HostKey, string> = {
   'cleanup.usage': '用法：\n  /snapshot-auto-cleanup                 查看状态\n  /snapshot-auto-cleanup on|off          开启/关闭自动清理\n  /snapshot-auto-cleanup max-age <天数>  设置失活阈值（天）\n  /snapshot-auto-cleanup run [--apply]   预演，或加 --apply 执行\n  /snapshot-auto-cleanup run --current [--apply]  预演/清除本会话快照',
 }
 
+/** Japanese dictionary, checked complete against the en key set. */
+export const ja: Record<HostKey, string> = {
+  'plan.skip': '  復元対象外：{path}（{reason}）',
+  'skipReason.oversized': '{limit} のバックアップ上限を超えているため、記録された状態は未追跡の編集より前のものです',
+  'error.invalidTarget': '対象 "{raw}" を解析できません（<index> または @<seq> を指定してください）',
+  'sep.list': '、',
+  'sep.clause': '；',
+  'failures.suffix': '；{count} 件のファイルを復元できませんでした：{list}',
+  'failures.item': '{path}（{message}）',
+  'inflight': 'このセッションでは既に巻き戻しが実行中です。お待ちください。',
+  'stopFailed': '実行中のエージェントを停止できなかったため、巻き戻しをキャンセルしました。もう一度お試しください。',
+  'cancelled': '巻き戻しをキャンセルしました。',
+  'failed': '巻き戻しに失敗しました：{error}。セッションは変更されていません。',
+  'restore.count': '{count} 件のファイルを復元しました',
+  'delete.count': '{count} 件のファイルを削除しました',
+  'skip.count': '{count} 件のパスをスキップしました',
+  'noRestorable': '；対象より後に復元できる書込み系の変更はありません',
+  'backupOff': 'スナップショットのバックアップが無効なため、復元が不完全になる可能性があります',
+  'storeUnsupported': 'ファイルを復元できません：これらのスナップショットは、このプラグインが理解できる形式より新しい保存形式（v{version}）を使っています。何も変更されていません。プラグインを更新するか、このセッションのスナップショットを消去してください。',
+  'success': 'seq {targetSeq} とそれ以降を撤回しました（会話は以前の状態に戻りました）{restore}。',
+  'noUserMessages': 'このセッションにはまだ巻き戻しできるユーザーメッセージがありません。',
+  'command.description': '会話やファイルを以前の時点まで巻き戻します',
+  'command.undoDescription': '/rewind のエイリアス',
+  'engine.description': 'dsh-rewind の内部コマンド',
+  'engine.rejected': '内部コマンドです。/rewind または /undo を使ってください。',
+  'engine.inputHint': '@<seq> chat|both',
+  'cleanup.description': 'セッションのスナップショットバックアップの自動クリーンアップを管理します',
+  'cleanup.inputHint': 'on | off | max-age <日数> | run [--apply] [--current]',
+  'cleanup.status': '自動クリーンアップ：{state}。最大保持期間：{days} 日。',
+  'cleanup.enabled': '有効',
+  'cleanup.disabled': '無効',
+  'cleanup.onOk': '自動クリーンアップを有効にしました。',
+  'cleanup.offOk': '自動クリーンアップを無効にしました — すべてのスナップショットが保持されます。',
+  'cleanup.maxAgeOk': '自動クリーンアップの最大保持期間を {days} 日に設定しました。',
+  'cleanup.cfgInvalid': 'スナップショットのクリーンアップ設定が無効です：{detail}。何も実行されていません。"on|off|max-age" で設定をリセットしてください。',
+  'cleanup.saveFailed': 'クリーンアップ設定を保存できませんでした：{detail}。',
+  'cleanup.runDry': 'ドライラン：{deleted} 件のセッションのスナップショットバックアップを削除し、{freed} バイトを解放します。実際に削除するには --apply を付けて再実行してください。',
+  'cleanup.runApply': '{deleted} 件のセッションのスナップショットバックアップを削除し、{freed} バイトを解放しました。{kept} 件を保持し、残りは {remaining} バイトです。',
+  'cleanup.runFailed': 'クリーンアップに失敗しました：{detail}。',
+  'cleanup.skipped': '（アクティブなセッション {skipped} 件をスキップしました。）',
+  'cleanup.clearDry': 'ドライラン：現在のセッションのスナップショット {entries} 件を消去し、{bytes} バイトを解放します。実際に削除するには --apply を付けて再実行してください。',
+  'cleanup.clearApply': '現在のセッションのスナップショット {entries} 件を消去し、{bytes} バイトを解放しました。このセッションは現在の状態から新しくスナップショットを記録します。',
+  'cleanup.clearActive': 'セッション {sessionId} を消去できません：セッションはまだ実行中で、停止できませんでした。アイドル状態になってからもう一度お試しください。',
+  'cleanup.clearCancelled': '消去をキャンセルしました。',
+  'cleanup.clearFailed': 'セッション {sessionId} を消去できませんでした：{detail}。',
+  'cleanup.usage': '使い方：\n  /snapshot-auto-cleanup                 状態を表示\n  /snapshot-auto-cleanup on|off          自動クリーンアップの有効/無効\n  /snapshot-auto-cleanup max-age <日数>  アイドルしきい値を設定\n  /snapshot-auto-cleanup run [--apply]   ドライラン、または --apply で実行\n  /snapshot-auto-cleanup run --current [--apply]   ドライラン／現在のセッションのスナップショットを消去',
+}
+
 /** The host dictionaries keyed by locale id. */
-export const HOST_DICTS: Record<HostLocaleId, Record<HostKey, string>> = { en, zh }
+export const HOST_DICTS: Record<HostLocaleId, Record<HostKey, string>> = { en, zh, ja }
 
 /**
  * Render one dictionary key with `{name}` template interpolation. Unknown

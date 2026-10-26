@@ -1,14 +1,16 @@
 /**
- * Unit tests for the host-side locale dictionaries (src/locales.ts): en/zh key
- * set parity, template interpolation, and the default-language behavior.
+ * Unit tests for the host-side locale dictionaries (src/locales.ts): en/zh/ja
+ * key set parity, template interpolation, and the default-language behavior.
  */
 import { describe, expect, it } from 'vitest'
-import { en, preferredLocale, translate, zh } from '../src/locales.ts'
+import { en, ja, preferredLocale, translate, zh } from '../src/locales.ts'
 
 describe('host locale dictionaries', () => {
-  it('zh carries exactly the en key set (bilingual balance)', () => {
+  it('zh and ja carry exactly the en key set (dictionary balance)', () => {
     expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort())
+    expect(Object.keys(ja).sort()).toEqual(Object.keys(en).sort())
     expect(zh).toHaveProperty('command.description')
+    expect(ja).toHaveProperty('command.description')
     expect(en).toHaveProperty('command.description')
   })
 
@@ -38,10 +40,16 @@ describe('preferredLocale', () => {
     expect(preferredLocale('ZH-Hans')).toBe('zh')
   })
 
+  it('selects ja for a Japanese preference, region tags included', () => {
+    expect(preferredLocale('ja')).toBe('ja')
+    expect(preferredLocale('ja-JP')).toBe('ja')
+    expect(preferredLocale('JA')).toBe('ja')
+  })
+
   it('falls back to English for every language this plugin does not ship', () => {
     expect(preferredLocale('en')).toBe('en')
     expect(preferredLocale('en-US')).toBe('en')
-    expect(preferredLocale('ja')).toBe('en')
+    expect(preferredLocale('ko')).toBe('en')
     expect(preferredLocale('')).toBe('en')
   })
 

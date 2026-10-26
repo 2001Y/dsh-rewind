@@ -89,7 +89,7 @@ describe('package layout', () => {
     expect(icon).toMatch(/^\.\/(?!.*\.\.).*\.(svg|png|jpe?g|webp)$/)
     const bytes = await readFile(join(root, icon!.slice(2)))
     expect(bytes.byteLength).toBeLessThanOrEqual(256 * 1024)
-    for (const language of ['en', 'zh']) {
+    for (const language of ['en', 'zh', 'ja']) {
       const locale = JSON.parse(await readFile(join(root, 'locale', `${language}.json`), 'utf8')) as {
         meta?: { title?: string; description?: string }
       }
